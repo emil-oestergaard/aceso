@@ -1,0 +1,138 @@
+# CLAUDE.md — repo guide for AI agents
+
+**What this repo is.** `aceso` is a self-healing AI agent for VPS
+observability, written in Go. It polls Prometheus for firing alerts,
+queries Loki for the logs from each affected target, and asks a local
+Ollama model to produce a `{cause, suggested_action}` diagnosis. Every
+incident is appended as NDJSON to `/data/incidents.json`. **V0 observes
+and diagnoses only** — no writes against the host or any service.
+Roadmap: V1 adds human-in-the-loop action proposals, V2 adds bounded
+autonomous remediation for whitelisted runbooks. The agent is stateless
+except for the incident log; the binary is stdlib-only Go shipped in a
+multi-stage Docker image.
+
+## First thing to read
+
+Always open [`docs/status.md`](docs/status.md) first. It is the living
+matrix of which capabilities are wired end-to-end, which are stubbed,
+and which are deferred — which alerts the agent has been tested
+against, which Loki label sets are queryable in practice, which Ollama
+models have produced reliable diagnoses, and which roadmap milestones
+have actually shipped. **Do not assume a capability exists in
+production code unless this file says so.** If `docs/status.md` does
+not yet exist for the change you are about to make, your first commit
+creates it.
+
+Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
+
+## Where code lives
+
+- `agent/main.go` — entrypoint, signal handling, polling ticker
+- `agent/config.go` — env-driven configuration loader
+- `agent/prometheus.go` — client for `/api/v1/alerts`, firing-state filter
+- `agent/loki.go` — client for `/loki/api/v1/query_range`, LogQL built from alert labels
+- `agent/ollama.go` — client for `/api/generate`, JSON-output parser with prose-fence recovery
+- `agent/brain.go` — orchestrator: prompt construction + NDJSON incident persistence
+- `agent/go.mod` — module manifest, toolchain pin (`go1.26.2`)
+- `agent/Dockerfile` — multi-stage build, static binary, non-root runtime
+- `docker-compose.yml` — `aceso` service, named volume for `/data`, external `monitoring` network
+- `docs/` — topic docs, sized for AI context (see rules below)
+
+## Rules for agents working here
+
+1. **Update the docs in the same change.** When you touch a polling
+   cadence, env var, label-selection heuristic, prompt structure,
+   incident schema, deliverable, or deploy topology, update the matching
+   file under `docs/` in the *same commit*. Start from `docs/INDEX.md`
+   to find the right one. If none fits, add a new file and link it from
+   `INDEX.md`. **A change without a doc update is unfinished work.**
+
+2. **Flip `docs/status.md`** when a capability moves between
+   stub / wired / deferred — when a new alert is supported, a model is
+   validated, a remediation moves from V1 plan to V1 ship, etc. Same
+   commit ships the wiring and updates the row.
+
+3. **Keep every `docs/*.md` ≤ 400 lines and ≤ 3 000 words.** If a doc
+   grows past the limit, split it into a sibling file rather than
+   inflating one. Docs are sized so the next agent can hold the relevant
+   one fully in context.
+
+4. **Tests land with code. No exceptions.** Every new function with
+   non-trivial behavior ships with a unit test. Every external API
+   client (`prometheus.go`, `loki.go`, `ollama.go`) has table-driven
+   tests against `httptest.Server` fixtures covering happy path,
+   non-2xx, malformed JSON, and timeout. Every prompt builder and
+   persistence helper has tests asserting deterministic output. The
+   orchestrator (`brain.go`) has integration tests exercising the full
+   alert → logs → prompt → diagnosis → persist path against fakes.
+
+5. **Coverage floor: 80 %. Race detector mandatory.** PRs must pass
+   `go test -race -cover ./...`. The agent runs ticks under context
+   deadlines and may grow concurrency over time; a data race here means
+   a self-healing system that silently corrupts its own incident log.
+
+6. **Test the *important* components, not every line.** Configuration
+   loading, label-selector construction, JSON envelope parsing,
+   prompt-text stability, NDJSON append safety, partial-failure
+   recording, and the polling loop's bounded-deadline semantics are all
+   load-bearing. Trivial getters are not. When in doubt, test it.
+
+7. **Stdlib first.** External dependencies require a written
+   justification in `docs/dependencies.md` (rationale, license, last
+   release, maintenance signal). The stdlib-only baseline is a feature,
+   not an accident — it keeps the binary small, the audit surface tiny,
+   and the supply chain trivial to reason about.
+
+8. **Graceful degradation is non-negotiable.** Loki down ≠ skip the
+   alert. Ollama timeout ≠ crash. Every external call has explicit
+   error handling, and every partial failure is recorded on the
+   incident with an `error` field so the history shows *what* the agent
+   could and couldn't see at decision time. See
+   [`docs/error-handling.md`](docs/error-handling.md).
+
+9. **V0 is read-only.** The agent must not execute writes against the
+   host or any monitored service. HTTP `GET` only against Prometheus
+   and Loki; `POST` only to Ollama. Any change that introduces a write
+   path is an architectural change and ships behind explicit
+   human-in-the-loop approval. See [`docs/roadmap.md`](docs/roadmap.md).
+
+10. **The incident schema is a contract.** `/data/incidents.json` will
+    be consumed by future tooling (dashboards, the V1 approval UI,
+    post-incident review). Schema changes are versioned and documented
+    in [`docs/incidents-schema.md`](docs/incidents-schema.md). Breaking
+    changes ship a migration note in the same commit.
+
+## Running
+
+See [`README.md`](README.md) for the shortest path. The short version:
+
+```bash
+# One-time: create the shared monitoring network
+docker network create monitoring
+
+# Build and start Aceso
+docker compose up --build -d
+
+# Tail diagnoses
+docker compose logs -f aceso
+
+# Inspect persisted incidents
+docker compose exec aceso cat /data/incidents.json
+```
+
+Local development without Docker:
+
+```bash
+cd agent
+export PROMETHEUS_URL=http://localhost:9090
+export LOKI_URL=http://localhost:3100
+export OLLAMA_URL=http://localhost:11434
+go run .
+```
+
+Run the test suite (must pass before any commit):
+
+```bash
+cd agent
+go test -race -cover ./...
+```
