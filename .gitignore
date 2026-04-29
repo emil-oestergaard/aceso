@@ -1,0 +1,35 @@
+# Binaries
+/aceso
+/bin/
+/dist/
+/out/
+*.exe
+*.test
+*.out
+
+# Go workspace / cache
+/vendor/
+go.work
+go.work.sum
+
+# Local data — incidents are runtime state, never check them in
+/data/
+incidents.json
+*.ndjson
+
+# Env files (real values must never be committed)
+.env
+.env.*
+!.env.example
+
+# Editor & OS clutter
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage.out
+coverage.html

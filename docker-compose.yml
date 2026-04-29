@@ -1,0 +1,49 @@
+# Aceso V0 — observe-and-diagnose service.
+#
+# Assumes Prometheus, Loki, and Ollama are already running and reachable on
+# the external "monitoring" network. Hostnames below match common defaults;
+# override via .env or environment if your services live elsewhere.
+services:
+  aceso:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    image: aceso:latest
+    container_name: aceso
+    restart: unless-stopped
+
+    environment:
+      # Required: full base URLs for each backend.
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
+      LOKI_URL:       ${LOKI_URL:-http://loki:3100}
+      OLLAMA_URL:     ${OLLAMA_URL:-http://ollama:11434}
+
+      # Optional: model + cadence + persistence path.
+      OLLAMA_MODEL:          ${OLLAMA_MODEL:-gemma2:2b}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-30}
+      HTTP_TIMEOUT_SECONDS:  ${HTTP_TIMEOUT_SECONDS:-120}
+      INCIDENTS_PATH:        /data/incidents.json
+      TZ:                    UTC
+
+    volumes:
+      - aceso-data:/data
+
+    networks:
+      - monitoring
+
+    # Keep the container quiet but the logs accessible.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  aceso-data:
+    driver: local
+
+networks:
+  # External network where prometheus, loki, and ollama already live.
+  # Create it once with: docker network create monitoring
+  monitoring:
+    external: true
