@@ -1,0 +1,23 @@
+# Always-firing test alert for Aceso's local dev stack.
+#
+# vector(1) > 0 evaluates to a single-sample vector on every tick, so
+# this alert is always active. With evaluation_interval=5s and rule
+# group interval=10s, expect "firing" within ~10 s of bringing the
+# stack up.
+#
+# The `job: aceso-self-test` label is intentional: it gives Aceso's
+# LogQL builder a label it recognizes (one of {job, instance, container,
+# namespace, pod, service, app}) so the Loki path is exercised end to
+# end rather than short-circuited by the empty-selector skip.
+
+groups:
+  - name: test
+    interval: 10s
+    rules:
+      - alert: AlwaysFiring
+        expr: vector(1) > 0
+        labels:
+          severity: critical
+          job:      aceso-self-test
+        annotations:
+          summary: "Test alert is firing"
