@@ -49,8 +49,11 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
 
 2. **Flip `docs/status.md`** when a capability moves between
    stub / wired / deferred — when a new alert is supported, a model is
-   validated, a remediation moves from V1 plan to V1 ship, etc. Same
-   commit ships the wiring and updates the row.
+   validated, a remediation moves from V1 plan to V1 ship, **or when
+   tests are added or removed for any source file**. Same commit ships
+   the wiring (or the tests) and updates the row. Adding tests without
+   flipping the per-file test row in `docs/status.md` is unfinished
+   work, even if no production code changed.
 
 3. **Keep every `docs/*.md` ≤ 400 lines and ≤ 3 000 words.** If a doc
    grows past the limit, split it into a sibling file rather than
@@ -65,6 +68,10 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
    persistence helper has tests asserting deterministic output. The
    orchestrator (`brain.go`) has integration tests exercising the full
    alert → logs → prompt → diagnosis → persist path against fakes.
+   When tests land — either alongside new code or as a backfill task —
+   the matching per-file row in `docs/status.md` flips in the same
+   commit (see rule 2). No commit that adds or removes a `_test.go`
+   file is complete without a matching `status.md` diff.
 
 5. **Coverage floor: 80 %. Race detector mandatory.** PRs must pass
    `go test -race -cover ./...`. The agent runs ticks under context

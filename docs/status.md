@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-04-29
+> Last updated: 2026-04-30
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -58,8 +58,8 @@
 |------------|--------|-------|
 | `go vet ./...` clean | `shipped` | Verified at scaffold time under `go1.26.2`. |
 | `go build ./...` clean | `shipped` | Verified at scaffold time. |
-| Unit tests | `not started` | **Highest-priority gap.** No `_test.go` files exist yet. CLAUDE.md rule 4 requires this; flip rows below as tests land. |
-| `go test -race -cover ./...` ≥ 80 % | `not started` | Coverage floor enforced once the first tests exist. |
+| Unit tests | `wired` | 3 of 6 source files have `_test.go` (prometheus, ollama, brain.buildPrompt). `config.go`, `loki.go`, `main.go`, and the rest of `brain.go` (`appendIncident`, `Tick`, `diagnoseAlert`) remain uncovered. |
+| `go test -race -cover ./...` ≥ 80 % | `not started` | Currently 41.0 % package-level. Below the 80 % floor until the remaining files are tested. |
 | CI pipeline | `not started` | Repo is local-only; no CI yet. |
 
 ### Per-file test status
@@ -67,10 +67,10 @@
 | File | Tests | Notes |
 |------|-------|-------|
 | `agent/config.go` | `not started` | Need: missing-required-var failure, default fallbacks, bad integers. |
-| `agent/prometheus.go` | `not started` | Need: `httptest.Server` covering happy path, non-2xx, malformed JSON, status≠success, firing-only filter. |
+| `agent/prometheus.go` | `wired` | `prometheus_test.go`: happy path, empty list, non-2xx, malformed JSON, api-level error, firing-only filter (case-insensitive), transport failure. |
 | `agent/loki.go` | `not started` | Need: LogQL builder priority order, empty-selector skip, timestamp parsing, sort-newest-first. |
-| `agent/ollama.go` | `not started` | Need: `httptest.Server` happy path, prose-fence recovery, `done=false` rejection, timeout. |
-| `agent/brain.go` | `not started` | Need: prompt determinism, NDJSON append integrity, partial-failure incident shape, end-to-end loop with fakes. |
+| `agent/ollama.go` | `wired` | `ollama_test.go`: happy path, markdown-fenced recovery, malformed output, non-2xx, `done=false`, malformed envelope, transport failure, timeout, plus direct `recoverJSON` table. |
+| `agent/brain.go` | `wired` (partial) | `brain_test.go` covers `buildPrompt` only (full-field, alphabetical labels, no-logs sentinel, 800→500-char truncation, optional-field omission). `appendIncident`, `Tick`, `diagnoseAlert`, partial-failure incident shape still need tests. |
 | `agent/main.go` | `not started` | Need: signal-driven shutdown exits within the deadline. |
 
 ## Deploy
