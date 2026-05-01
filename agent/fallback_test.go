@@ -4,21 +4,25 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 )
 
 // fakeBackend is an in-process Backend used by fallback tests. It records
 // how many times Diagnose was called and returns the canned outcome.
+//
+// calls is a plain int because the chain runs serially — no goroutine is
+// ever spawned by FallbackChain.Diagnose, so the field is accessed from
+// exactly one goroutine. If the chain ever goes parallel, the race
+// detector will flag the test and we switch to atomic.Int32 then.
 type fakeBackend struct {
-	calls atomic.Int32
+	calls int
 	diag  Diagnosis
 	err   error
 }
 
 func (f *fakeBackend) Diagnose(ctx context.Context, prompt string) (Diagnosis, error) {
-	f.calls.Add(1)
+	f.calls++
 	if f.err != nil {
 		return Diagnosis{}, f.err
 	}
@@ -48,14 +52,14 @@ func TestFallbackChainSucceedsOnFirstHealthyBackend(t *testing.T) {
 	if got.Cause != "primary cause" || got.SuggestedAction != "primary action" {
 		t.Errorf("got %+v, want primary diagnosis", got)
 	}
-	if primary.calls.Load() != 1 {
-		t.Errorf("primary.calls = %d, want 1", primary.calls.Load())
+	if primary.calls != 1 {
+		t.Errorf("primary.calls = %d, want 1", primary.calls)
 	}
-	if secondary.calls.Load() != 0 {
-		t.Errorf("secondary should not have been called, got %d calls", secondary.calls.Load())
+	if secondary.calls != 0 {
+		t.Errorf("secondary should not have been called, got %d calls", secondary.calls)
 	}
-	if tertiary.calls.Load() != 0 {
-		t.Errorf("tertiary should not have been called, got %d calls", tertiary.calls.Load())
+	if tertiary.calls != 0 {
+		t.Errorf("tertiary should not have been called, got %d calls", tertiary.calls)
 	}
 }
 
@@ -82,14 +86,14 @@ func TestFallbackChainFallsThroughOnFailure(t *testing.T) {
 	if got.Cause != "secondary cause" {
 		t.Errorf("got cause %q, want %q", got.Cause, "secondary cause")
 	}
-	if primary.calls.Load() != 1 {
-		t.Errorf("primary.calls = %d, want 1", primary.calls.Load())
+	if primary.calls != 1 {
+		t.Errorf("primary.calls = %d, want 1", primary.calls)
 	}
-	if secondary.calls.Load() != 1 {
-		t.Errorf("secondary.calls = %d, want 1", secondary.calls.Load())
+	if secondary.calls != 1 {
+		t.Errorf("secondary.calls = %d, want 1", secondary.calls)
 	}
-	if tertiary.calls.Load() != 0 {
-		t.Errorf("tertiary should not have been called once secondary succeeded; got %d", tertiary.calls.Load())
+	if tertiary.calls != 0 {
+		t.Errorf("tertiary should not have been called once secondary succeeded; got %d", tertiary.calls)
 	}
 }
 
@@ -124,8 +128,8 @@ func TestFallbackChainAllBackendsFailReturnsWrappedError(t *testing.T) {
 		}
 	}
 	for _, b := range []*fakeBackend{primary, secondary, tertiary} {
-		if b.calls.Load() != 1 {
-			t.Errorf("each backend should have been called exactly once on full failure, got %d", b.calls.Load())
+		if b.calls != 1 {
+			t.Errorf("each backend should have been called exactly once on full failure, got %d", b.calls)
 		}
 	}
 }
@@ -166,9 +170,9 @@ func TestFallbackChainCancelledContextShortCircuits(t *testing.T) {
 	if !strings.Contains(err.Error(), "context cancelled") {
 		t.Errorf("err = %q, want 'context cancelled' substring", err.Error())
 	}
-	if primary.calls.Load() != 0 || secondary.calls.Load() != 0 {
+	if primary.calls != 0 || secondary.calls != 0 {
 		t.Errorf("no backend should be called when ctx is cancelled before entry, got primary=%d secondary=%d",
-			primary.calls.Load(), secondary.calls.Load())
+			primary.calls, secondary.calls)
 	}
 }
 

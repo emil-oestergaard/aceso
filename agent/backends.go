@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -278,7 +277,8 @@ func (b *GeminiBackend) Diagnose(ctx context.Context, prompt string) (Diagnosis,
 // consistently when a model decorates its JSON with markdown or commentary.
 func parseDiagnosisJSON(backend, raw string) (Diagnosis, error) {
 	var diag Diagnosis
-	if err := json.Unmarshal([]byte(raw), &diag); err == nil {
+	firstErr := json.Unmarshal([]byte(raw), &diag)
+	if firstErr == nil {
 		return diag, nil
 	}
 	if cleaned, ok := recoverJSON(raw); ok {
@@ -286,7 +286,9 @@ func parseDiagnosisJSON(backend, raw string) (Diagnosis, error) {
 			return diag, nil
 		}
 	}
-	return Diagnosis{}, fmt.Errorf("%s: decoding diagnosis: invalid JSON (raw=%s)", backend, truncate(raw, 200))
+	// Surface the first unmarshal error so a truncated payload is
+	// distinguishable from a type mismatch. Mirrors ollama.go:121.
+	return Diagnosis{}, fmt.Errorf("%s: decoding diagnosis: %w (raw=%s)", backend, firstErr, truncate(raw, 200))
 }
 
 // buildBackendChain materializes a FallbackChain from the configured order.
@@ -295,8 +297,10 @@ func parseDiagnosisJSON(backend, raw string) (Diagnosis, error) {
 // the chain only errors out when *no* backend is usable.
 func buildBackendChain(cfg *Config, ollama *OllamaClient) (*FallbackChain, error) {
 	var chain []namedBackend
-	for _, raw := range cfg.BackendOrder {
-		name := strings.ToLower(strings.TrimSpace(raw))
+	// cfg.BackendOrder is already lower-cased, trimmed, and empty-stripped
+	// by parseCSVDefault (see config.go), so the switch can match the raw
+	// entry directly. The default branch handles unknown names.
+	for _, name := range cfg.BackendOrder {
 		switch name {
 		case "":
 			continue
@@ -321,7 +325,7 @@ func buildBackendChain(cfg *Config, ollama *OllamaClient) (*FallbackChain, error
 				b:    newGeminiBackend(cfg.GeminiAPIKey, cfg.HTTPTimeout),
 			})
 		default:
-			log.Printf("[chain] skipping unknown backend: %q", raw)
+			log.Printf("[chain] skipping unknown backend: %q", name)
 		}
 	}
 	if len(chain) == 0 {

@@ -96,8 +96,14 @@ func parseSecondsDefault(key string, fallback int) time.Duration {
 }
 
 // parseCSVDefault reads a comma-separated env var and returns a trimmed,
-// lower-cased, empty-stripped slice. Falls back to the supplied default when
-// the env var is unset or yields an empty slice after trimming.
+// lower-cased, empty-stripped slice.
+//
+// Fallback semantics: the function returns the supplied default when the
+// env var is unset *or* when every entry is empty after trimming (e.g.
+// ", , ,"). This favours "broken value → safe default" over "broken
+// value → no backends" for the BACKEND_ORDER caller in this file. If you
+// ever need a parser where an explicit-but-empty value should override
+// the default, write a sibling helper rather than changing this contract.
 func parseCSVDefault(key string, fallback []string) []string {
 	raw := os.Getenv(key)
 	if raw == "" {
