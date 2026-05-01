@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-04-30 (dev stack scaffolded)
+> Last updated: 2026-05-01 (multi-backend fallback chain landed)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -35,6 +35,10 @@
 | `{cause, suggested_action}` parsing | `wired` | Includes a prose-fence recovery (`recoverJSON`) for chatty small models. |
 | Default model `gemma2:2b` | `wired` | Configurable via `OLLAMA_MODEL`. No A/B between models yet. |
 | Prompt stability (sorted labels, deterministic ordering) | `wired` | `agent/brain.go:buildPrompt`. |
+| Multi-backend fallback chain (`Backend` interface + `FallbackChain`) | `wired` | `agent/backends.go`, `agent/fallback.go`. Default order `ollama,deepseek,gemini` via `BACKEND_ORDER`. Backends without credentials are skipped at startup with a log line; chain returns a wrapped error only when *every* configured backend fails. Not yet exercised against live DeepSeek / Gemini. |
+| DeepSeek backend (OpenAI-compatible `/chat/completions`) | `wired` | `agent/backends.go:DeepSeekBackend`. Model `deepseek-chat`, header auth, `response_format=json_object`. Enabled when `DEEPSEEK_API_KEY` is set. |
+| Gemini backend (Google AI Studio `generateContent`) | `wired` | `agent/backends.go:GeminiBackend`. Model `gemini-1.5-flash`, `x-goog-api-key` header, `responseMimeType=application/json`. Enabled when `GEMINI_API_KEY` is set. |
+| Ollama-on-Tailscale (Pi as primary backend) | `planned` | Compose env now allows `OLLAMA_URL` to point at a Tailscale IP. Validation against a real Pi is the next deploy milestone. |
 
 ## Persist
 
@@ -58,8 +62,8 @@
 |------------|--------|-------|
 | `go vet ./...` clean | `shipped` | Verified at scaffold time under `go1.26.2`. |
 | `go build ./...` clean | `shipped` | Verified at scaffold time. |
-| Unit tests | `wired` | 3 of 6 source files have `_test.go` (prometheus, ollama, brain.buildPrompt). `config.go`, `loki.go`, `main.go`, and the rest of `brain.go` (`appendIncident`, `Tick`, `diagnoseAlert`) remain uncovered. |
-| `go test -race -cover ./...` ≥ 80 % | `not started` | Currently 41.0 % package-level. Below the 80 % floor until the remaining files are tested. |
+| Unit tests | `wired` | 5 of 8 source files have `_test.go` (prometheus, ollama, brain.buildPrompt, backends, fallback). `config.go`, `loki.go`, `main.go`, and the rest of `brain.go` (`appendIncident`, `Tick`, `diagnoseAlert`) remain uncovered. |
+| `go test -race -cover ./...` ≥ 80 % | `not started` | Currently 52.2 % package-level (up from 41.0 % after backends + fallback tests landed). Below the 80 % floor until the remaining files are tested. |
 | CI pipeline | `not started` | Repo is local-only; no CI yet. |
 
 ### Per-file test status
@@ -72,6 +76,8 @@
 | `agent/ollama.go` | `wired` | `ollama_test.go`: happy path, markdown-fenced recovery, malformed output, non-2xx, `done=false`, malformed envelope, transport failure, timeout, plus direct `recoverJSON` table. |
 | `agent/brain.go` | `wired` (partial) | `brain_test.go` covers `buildPrompt` only (full-field, alphabetical labels, no-logs sentinel, 800→500-char truncation, optional-field omission). `appendIncident`, `Tick`, `diagnoseAlert`, partial-failure incident shape still need tests. |
 | `agent/main.go` | `not started` | Need: signal-driven shutdown exits within the deadline. |
+| `agent/backends.go` | `wired` | `backends_test.go`: DeepSeek + Gemini happy path, markdown-fenced recovery, non-2xx, malformed envelope, empty choices/candidates, garbage content, transport failure. `parseDiagnosisJSON` directly tested. `OllamaBackend` is a one-line wrapper exercised transitively via the existing `ollama_test.go`. |
+| `agent/fallback.go` | `wired` | `fallback_test.go`: success on first healthy backend, fall-through on failure, all-fail returns wrapped error with every per-backend message, empty chain rejected, pre-cancelled context short-circuits, `buildBackendChain` skips backends without credentials, errors when none usable, honours BACKEND_ORDER ordering. |
 
 ## Deploy
 

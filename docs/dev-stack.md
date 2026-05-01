@@ -1,6 +1,6 @@
 # docs/dev-stack.md — local end-to-end smoke test
 
-> Last updated: 2026-04-30
+> Last updated: 2026-05-01
 
 This file documents `docker-compose.dev.yml` and the four configs under
 `config/`. It is the shortest path from a clean clone to "Aceso wrote
@@ -87,6 +87,31 @@ so re-pulling `gemma2:2b` is the price of a clean reset.
 | `aceso` logs `ollama: response not marked done` | Model still streaming-loading on first request. | Bump `HTTP_TIMEOUT_SECONDS` or pull the model first (step 2 above). |
 | `incidents.json` empty after a few minutes | Ollama OOM (2 GiB cap is tight for some models). | Either raise the `memory: 2g` limit in `docker-compose.dev.yml` or pick a smaller `OLLAMA_MODEL`. |
 | Promtail logs `permission denied` on `/var/run/docker.sock` | Host Docker socket has restrictive permissions. | Add Promtail's container user to the docker group, or run the dev stack with elevated permissions on the socket bind. |
+
+## LLM backend chain in dev
+
+The agent now resolves an ordered fallback chain (`agent/backends.go`,
+`agent/fallback.go`) instead of calling Ollama directly. Default order is
+`ollama,deepseek,gemini` (`BACKEND_ORDER`). The dev stack ships with
+`DEEPSEEK_API_KEY` and `GEMINI_API_KEY` *unset*, so Ollama is the only
+usable backend by default — the cloud APIs are skipped at startup with a
+log line and zero cost. Nothing has to change to keep the existing
+"Ollama-only, free, fully local" smoke-test workflow.
+
+To exercise the fallback path locally without touching production, export
+keys before bringing the stack up:
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+export GEMINI_API_KEY=...
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
+Or place them in a `.env` next to the compose file (already gitignored).
+The chain still tries Ollama first; the cloud APIs are only called when
+Ollama errors. Force a chain test by stopping the local Ollama container
+(`docker compose -f docker-compose.dev.yml stop ollama`) and watching
+Aceso fall through to DeepSeek and then Gemini.
 
 ## Differences from production (`docker-compose.yml`)
 

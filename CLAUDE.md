@@ -32,6 +32,8 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
 - `agent/prometheus.go` — client for `/api/v1/alerts`, firing-state filter
 - `agent/loki.go` — client for `/loki/api/v1/query_range`, LogQL built from alert labels
 - `agent/ollama.go` — client for `/api/generate`, JSON-output parser with prose-fence recovery
+- `agent/backends.go` — `Backend` interface + Ollama / DeepSeek / Gemini implementations + `buildBackendChain` resolver
+- `agent/fallback.go` — `FallbackChain` that tries each backend in order and returns the first success or a wrapped error if all fail
 - `agent/brain.go` — orchestrator: prompt construction + NDJSON incident persistence
 - `agent/go.mod` — module manifest, toolchain pin (`go1.26.2`)
 - `agent/Dockerfile` — multi-stage build, static binary, non-root runtime

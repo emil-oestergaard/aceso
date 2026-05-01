@@ -29,13 +29,18 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	log.Printf("starting | prometheus=%s loki=%s ollama=%s model=%s interval=%s",
-		cfg.PrometheusURL, cfg.LokiURL, cfg.OllamaURL, cfg.OllamaModel, cfg.PollInterval)
+	log.Printf("starting | prometheus=%s loki=%s ollama=%s model=%s order=%v interval=%s",
+		cfg.PrometheusURL, cfg.LokiURL, cfg.OllamaURL, cfg.OllamaModel, cfg.BackendOrder, cfg.PollInterval)
 
 	prom := newPrometheusClient(cfg.PrometheusURL, cfg.HTTPTimeout)
 	loki := newLokiClient(cfg.LokiURL, cfg.HTTPTimeout)
 	ollama := newOllamaClient(cfg.OllamaURL, cfg.OllamaModel, cfg.HTTPTimeout)
-	brain := newBrain(cfg, prom, loki, ollama)
+
+	chain, err := buildBackendChain(cfg, ollama)
+	if err != nil {
+		log.Fatalf("backend chain: %v", err)
+	}
+	brain := newBrain(cfg, prom, loki, chain)
 
 	// Cancellable root context, cancelled on SIGINT/SIGTERM so a `docker stop`
 	// or Ctrl-C exits cleanly mid-tick.

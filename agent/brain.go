@@ -13,16 +13,17 @@ import (
 )
 
 // Brain is the orchestrator: it pulls alerts, hydrates them with logs,
-// asks Ollama for a diagnosis, and persists the incident to disk.
+// asks the configured backend (single or fallback chain) for a diagnosis,
+// and persists the incident to disk.
 type Brain struct {
 	cfg        *Config
 	prometheus *PrometheusClient
 	loki       *LokiClient
-	ollama     *OllamaClient
+	backend    Backend
 }
 
-func newBrain(cfg *Config, p *PrometheusClient, l *LokiClient, o *OllamaClient) *Brain {
-	return &Brain{cfg: cfg, prometheus: p, loki: l, ollama: o}
+func newBrain(cfg *Config, p *PrometheusClient, l *LokiClient, b Backend) *Brain {
+	return &Brain{cfg: cfg, prometheus: p, loki: l, backend: b}
 }
 
 // Incident is the durable record persisted to incidents.json.
@@ -70,10 +71,11 @@ func (b *Brain) diagnoseAlert(ctx context.Context, alert Alert) {
 	}
 
 	prompt := buildPrompt(alert, logs)
-	diagnosis, err := b.ollama.diagnose(ctx, prompt)
+	diagnosis, err := b.backend.Diagnose(ctx, prompt)
 	if err != nil {
-		log.Printf("[brain] ollama diagnose failed for %s: %v", alert.Name(), err)
+		log.Printf("[brain] diagnose failed for %s: %v", alert.Name(), err)
 		// No diagnosis means there's nothing actionable to persist for V0.
+		// The backend (single or chain) has already logged per-backend detail.
 		return
 	}
 

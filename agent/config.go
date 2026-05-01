@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,19 @@ type Config struct {
 	OllamaURL     string
 	OllamaModel   string
 
+	// DeepSeekAPIKey, if set, enables the DeepSeek backend in the fallback
+	// chain. Optional: deployments running Ollama-only leave this empty.
+	DeepSeekAPIKey string
+
+	// GeminiAPIKey, if set, enables the Google AI Studio (Gemini) backend
+	// in the fallback chain. Optional, same reasoning as DeepSeekAPIKey.
+	GeminiAPIKey string
+
+	// BackendOrder is the comma-separated list of backends the FallbackChain
+	// tries in order. Unknown names and backends without credentials are
+	// skipped at startup with a log line. Default: ["ollama","deepseek","gemini"].
+	BackendOrder []string
+
 	// IncidentsPath is the on-disk file Aceso appends incident records to.
 	// In Docker this is mounted from a named volume so history survives restarts.
 	IncidentsPath string
@@ -23,8 +37,9 @@ type Config struct {
 	// PollInterval controls how often Aceso pulls firing alerts from Prometheus.
 	PollInterval time.Duration
 
-	// HTTPTimeout is applied to every outbound HTTP call (Prometheus, Loki, Ollama).
-	// Ollama generations on small models can take a while, so we keep this generous.
+	// HTTPTimeout is applied to every outbound HTTP call (Prometheus, Loki,
+	// and every LLM backend). Ollama generations on small models can take a
+	// while, so we keep this generous.
 	HTTPTimeout time.Duration
 }
 
@@ -32,13 +47,16 @@ type Config struct {
 // Required URLs cause a hard failure; everything else falls back to sane defaults.
 func loadConfig() (*Config, error) {
 	cfg := &Config{
-		PrometheusURL: os.Getenv("PROMETHEUS_URL"),
-		LokiURL:       os.Getenv("LOKI_URL"),
-		OllamaURL:     os.Getenv("OLLAMA_URL"),
-		OllamaModel:   getenvDefault("OLLAMA_MODEL", "gemma2:2b"),
-		IncidentsPath: getenvDefault("INCIDENTS_PATH", "/data/incidents.json"),
-		PollInterval:  parseSecondsDefault("POLL_INTERVAL_SECONDS", 30),
-		HTTPTimeout:   parseSecondsDefault("HTTP_TIMEOUT_SECONDS", 120),
+		PrometheusURL:  os.Getenv("PROMETHEUS_URL"),
+		LokiURL:        os.Getenv("LOKI_URL"),
+		OllamaURL:      os.Getenv("OLLAMA_URL"),
+		OllamaModel:    getenvDefault("OLLAMA_MODEL", "gemma2:2b"),
+		DeepSeekAPIKey: os.Getenv("DEEPSEEK_API_KEY"),
+		GeminiAPIKey:   os.Getenv("GEMINI_API_KEY"),
+		BackendOrder:   parseCSVDefault("BACKEND_ORDER", []string{"ollama", "deepseek", "gemini"}),
+		IncidentsPath:  getenvDefault("INCIDENTS_PATH", "/data/incidents.json"),
+		PollInterval:   parseSecondsDefault("POLL_INTERVAL_SECONDS", 30),
+		HTTPTimeout:    parseSecondsDefault("HTTP_TIMEOUT_SECONDS", 120),
 	}
 
 	missing := []string{}
@@ -75,4 +93,26 @@ func parseSecondsDefault(key string, fallback int) time.Duration {
 		return time.Duration(fallback) * time.Second
 	}
 	return time.Duration(n) * time.Second
+}
+
+// parseCSVDefault reads a comma-separated env var and returns a trimmed,
+// lower-cased, empty-stripped slice. Falls back to the supplied default when
+// the env var is unset or yields an empty slice after trimming.
+func parseCSVDefault(key string, fallback []string) []string {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		t := strings.ToLower(strings.TrimSpace(p))
+		if t != "" {
+			out = append(out, t)
+		}
+	}
+	if len(out) == 0 {
+		return fallback
+	}
+	return out
 }

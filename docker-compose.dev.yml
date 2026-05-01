@@ -111,6 +111,13 @@ services:
       HTTP_TIMEOUT_SECONDS:  30
       INCIDENTS_PATH:        /data/incidents.json
       TZ:                    UTC
+
+      # The dev stack runs Ollama-only by default (no API keys required).
+      # Export DEEPSEEK_API_KEY / GEMINI_API_KEY in your shell or .env to
+      # exercise the fallback path locally without touching production.
+      BACKEND_ORDER:    ${BACKEND_ORDER:-ollama,deepseek,gemini}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      GEMINI_API_KEY:   ${GEMINI_API_KEY:-}
     volumes:
       - aceso-data:/data
     networks:
