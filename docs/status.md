@@ -35,7 +35,7 @@
 | `{cause, suggested_action}` parsing | `wired` | Includes a prose-fence recovery (`recoverJSON`) for chatty small models. |
 | Default model `gemma2:2b` | `wired` | Configurable via `OLLAMA_MODEL`. No A/B between models yet. |
 | Prompt stability (sorted labels, deterministic ordering) | `wired` | `agent/brain.go:buildPrompt`. |
-| Local-only `Backend` chain (`Backend` interface + `FallbackChain`) | `wired` | `agent/backends.go`, `agent/fallback.go`. V0 only registers `OllamaBackend`; `buildBackendChain` errors out if no usable backend remains. The `FallbackChain` shape is preserved so future revisions can add a second local path without restructuring. |
+| Local-only `Backend` chain (`Backend` interface + `FallbackChain`) | `wired` | `agent/backends.go`, `agent/fallback.go`. V0 only registers `OllamaBackend`; the `buildBackendChain` switch rejects all unknown names (including `deepseek`/`gemini`/`openai`) so a misconfigured `BACKEND_ORDER` cannot resurrect cloud paths — they are not in the binary. See CLAUDE.md rule 11. |
 | Ollama-on-Tailscale (Pi as primary backend) | `planned` | Compose env allows `OLLAMA_URL` to point at a Tailscale IP. Validation against a real Pi is the next deploy milestone (separate plan). |
 
 ## Escalation
@@ -110,7 +110,7 @@ loop" layer that V1's approval UI will eventually formalize.
 | `agent/brain.go` | `wired` (partial) | `brain_test.go` covers `buildPrompt` (full-field, alphabetical labels, no-logs sentinel, 800→500-char truncation, optional-field omission) and the escalation path of `diagnoseAlert` (escalator called once with the original error, persisted incident has `Escalated:true` and a zero-valued `Diagnosis`). `appendIncident` directly + `Tick` still need tests. |
 | `agent/main.go` | `not started` | Need: signal-driven shutdown exits within the deadline. |
 | `agent/backends.go` | `wired` | `backends_test.go`: `OllamaBackend` round-trip via `httptest.Server` confirming the wrapper is transparent. The cloud-backend tests were removed alongside the cloud backends themselves. |
-| `agent/fallback.go` | `wired` | `fallback_test.go`: success on first healthy backend, fall-through on failure, all-fail returns wrapped error with every per-backend message, empty chain rejected, pre-cancelled context short-circuits, plus `buildBackendChain` default-order and unknown-name error tests. |
+| `agent/fallback.go` | `wired` | `fallback_test.go`: success on first healthy backend, fall-through on failure, all-fail returns wrapped error with every per-backend message, empty chain rejected, pre-cancelled context short-circuits, `buildBackendChain` default order, **rejects cloud backends** (defense-in-depth), errors when only unknown names are supplied. |
 | `agent/escalate.go` | `wired` | `escalate_test.go`: empty-URL log-only path (no HTTP), full POST with body + `Title`/`Priority`/`Tags` headers verified against `httptest.Server`, non-2xx surfaced, transport failure surfaced. |
 
 ## Deploy

@@ -32,7 +32,7 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
 - `agent/prometheus.go` — client for `/api/v1/alerts`, firing-state filter
 - `agent/loki.go` — client for `/loki/api/v1/query_range`, LogQL built from alert labels
 - `agent/ollama.go` — client for `/api/generate`, JSON-output parser with prose-fence recovery
-- `agent/backends.go` — `Backend` interface + `OllamaBackend` + `buildBackendChain` resolver
+- `agent/backends.go` — `Backend` interface + `OllamaBackend` + `buildBackendChain` resolver. **Local-only**: no third-party LLM API code paths exist in the binary.
 - `agent/fallback.go` — `FallbackChain` that tries each backend in order and returns the first success or a wrapped error if all fail
 - `agent/escalate.go` — `Escalator` that surfaces backend-chain failures to a human via a structured log line and (optionally) an ntfy.sh push
 - `agent/brain.go` — orchestrator: prompt construction + NDJSON incident persistence + escalation routing on chain failure
@@ -111,6 +111,22 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
     post-incident review). Schema changes are versioned and documented
     in [`docs/incidents-schema.md`](docs/incidents-schema.md). Breaking
     changes ship a migration note in the same commit.
+
+11. **Inference is local-only. No exceptions.** The only LLM backend
+    Aceso talks to is a local Ollama instance — typically a Tailscale-
+    reachable Raspberry Pi in production, or a local container in dev.
+    Third-party LLM APIs (DeepSeek, Gemini, OpenAI, Anthropic, etc.)
+    are out of scope and the binary contains no code paths to them.
+    This is not a configuration toggle: defense in depth means flags
+    rot and config drifts, so the *implementations themselves do not
+    exist in the package*. If a future PR proposes adding a cloud
+    backend "for reliability", reject it and propose extending the
+    escalation layer instead. Production logs sent through the prompt
+    can contain hostnames, user IDs, request paths, and stack traces;
+    that data must not leave the operator's infrastructure. When the
+    chain fails, Aceso escalates to a human (see `agent/escalate.go`
+    and the `escalated: true` incident shape) — it does NOT silently
+    route around the outage.
 
 ## Running
 

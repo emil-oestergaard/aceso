@@ -197,6 +197,36 @@ func TestBuildBackendChainDefaultOrder(t *testing.T) {
 	}
 }
 
+// TestBuildBackendChainRejectsCloudBackends is the defense-in-depth check
+// that goes with the "no third-party LLM APIs" rule in CLAUDE.md.
+//
+// Even if BACKEND_ORDER were misconfigured to ask for cloud backends, the
+// binary must refuse to construct them — not because we filter the names
+// here, but because the implementations literally do not exist in the
+// package. This test pins that contract: the chain ends up empty and the
+// builder errors out, regardless of how many cloud names are listed.
+//
+// If a future change ever silently restores a cloud backend, this test
+// will start failing for the right reason and force the change to be
+// debated explicitly.
+func TestBuildBackendChainRejectsCloudBackends(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{
+		BackendOrder: []string{"deepseek", "gemini", "openai"},
+		HTTPTimeout:  time.Second,
+	}
+	ollama := newOllamaClient("http://example.invalid", "gemma2:2b", time.Second)
+
+	_, err := buildBackendChain(cfg, ollama)
+	if err == nil {
+		t.Fatal("expected error when only cloud backends are requested, got nil")
+	}
+	if !strings.Contains(err.Error(), "no usable backends") {
+		t.Errorf("err = %q, want 'no usable backends' substring", err.Error())
+	}
+}
+
 func TestBuildBackendChainErrorsWhenAllUnknown(t *testing.T) {
 	t.Parallel()
 
