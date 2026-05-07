@@ -118,6 +118,17 @@ func (c *OllamaClient) diagnose(ctx context.Context, prompt string) (Diagnosis, 
 				return diag, nil
 			}
 		}
+		// Deferred-decision annotation (see "V0 escalation contract" in
+		// docs/status.md). The "raw=" payload is the model's own output,
+		// which is downstream of production log content because the
+		// prompt fed the model alert labels and Loki excerpts. This
+		// error string transitively reaches:
+		//   - the local [escalate] log line                  (acceptable: local)
+		//   - the on-disk incident's `error` field            (acceptable: local)
+		//   - NOT the ntfy.sh body (sanitized in escalate.go) (acceptable: by design)
+		// Safe ONLY while the log shipper is local-only (Promtail → Loki
+		// today). If logs are ever shipped off-prem, redact the raw=
+		// suffix here before that lands.
 		return Diagnosis{}, fmt.Errorf("ollama: decoding diagnosis: %w (raw=%s)", err, truncate(envelope.Response, 200))
 	}
 	return diag, nil

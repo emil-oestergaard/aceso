@@ -80,6 +80,7 @@ loop" layer that V1's approval UI will eventually formalize.
 | Partial-failure recording (`error` field on incident) | `wired` | Loki failure still produces an incident with the LLM's metadata-only diagnosis. |
 | Escalation field (`escalated: true`) | `wired` | Additive change to the incident schema. Success-path lines remain byte-identical (`omitempty`); escalated lines branch on this flag rather than empty-string-checking the diagnosis. |
 | Schema versioning | `not started` | When V1 lands a consumer, formalize in `docs/incidents-schema.md`. The `escalated` field's introduction is the first non-trivial schema evolution worth tracking there. |
+| `incident.error` as unstructured string | `wired` (with deferred-decision annotation) | Today the field is a single concatenated string ("loki: …; backend: fallback: all 1 backend(s) failed: ollama: connection refused"). It preserves enough signal to grep "Pi was down" vs. "Pi returned garbage" vs. "Pi timed out", but it is **not** structured. **Do not add more unstructured failure metadata to incidents.** When V1's review UI needs to render per-backend error history, migrate this field to a structured `backend_errors: [{name, error, at}]` array as the first formal schema-version bump. |
 
 ## Remediation
 
