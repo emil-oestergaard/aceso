@@ -1,0 +1,24 @@
+# WireGuard config template — CX23 side of the Aceso inference tunnel.
+#
+# cx23-setup.sh materialises this into /etc/wireguard/wg0.conf, substituting
+# placeholders from the operator-managed config file (cx23-setup.conf).
+# The materialised file is mode 0600, root-owned, and never committed to
+# the repo — it contains the CX23's WireGuard private key.
+#
+# Placeholders (substituted at deploy time, NOT environment variables):
+#   __CX23_PRIVKEY__ — contents of the CX23's WG private key (NOT a path)
+#   __CX23_ADDRESS__ — CX23's address inside the tunnel, e.g. 10.10.0.1/24
+#   __CX23_PORT__    — UDP port to listen on, default 51820
+#   __PEER_PUBKEY__  — Pi's WG public key (provided by operator)
+#   __PEER_ALLOWED__ — single host inside the tunnel, e.g. 10.10.0.2/32
+
+[Interface]
+PrivateKey = __CX23_PRIVKEY__
+Address = __CX23_ADDRESS__
+ListenPort = __CX23_PORT__
+
+[Peer]
+PublicKey = __PEER_PUBKEY__
+AllowedIPs = __PEER_ALLOWED__
+# No Endpoint — the Pi initiates because it sits behind home NAT.
+# The CX23 learns the Pi's current public IP from incoming handshakes.

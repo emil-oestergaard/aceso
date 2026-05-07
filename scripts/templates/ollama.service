@@ -1,0 +1,52 @@
+# Aceso-managed Ollama systemd unit.
+#
+# Installed by scripts/pi-setup.sh into /etc/systemd/system/ollama.service.
+# Committed verbatim — no placeholders. Edit this file (and re-run pi-setup.sh)
+# rather than editing the deployed copy directly, so the repo stays the
+# source of truth.
+#
+# Operational choices baked in:
+#   - Binds Ollama to the WireGuard interface address only (OLLAMA_HOST).
+#     Even if ufw misfires, the daemon is unreachable from LAN/internet.
+#   - Runs as the unprivileged 'aceso' user created in pi-setup.sh.
+#     Models live under /var/lib/ollama owned by that user.
+#   - OLLAMA_KEEP_ALIVE=24h keeps the model resident; cold-load happens
+#     only on Ollama restart, not between alert ticks.
+#   - Restart=on-failure with a short backoff so a transient OOM or panic
+#     recovers without operator intervention.
+
+[Unit]
+Description=Ollama (Aceso inference)
+Documentation=https://github.com/ollama/ollama
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+Requires=wg-quick@wg0.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/ollama serve
+User=aceso
+Group=aceso
+Environment="OLLAMA_HOST=10.10.0.2:11434"
+Environment="OLLAMA_MODELS=/var/lib/ollama/models"
+Environment="OLLAMA_KEEP_ALIVE=24h"
+Environment="HOME=/var/lib/ollama"
+Restart=on-failure
+RestartSec=3
+# Hardening: drop privileges as far as a network daemon can.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ollama
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

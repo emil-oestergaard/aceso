@@ -1,0 +1,56 @@
+# pi-setup.conf — operator-managed configuration for scripts/pi-setup.sh.
+#
+# Copy this file to a non-committed path (recommended: /etc/aceso-pi.conf,
+# mode 0600, root-owned) and fill in the values for your deployment.
+# pi-setup.sh sources it as bash variables.
+#
+#   sudo cp scripts/templates/pi-setup.conf.example /etc/aceso-pi.conf
+#   sudo chmod 0600 /etc/aceso-pi.conf
+#   sudo $EDITOR /etc/aceso-pi.conf
+#   sudo ./scripts/pi-setup.sh /etc/aceso-pi.conf
+#
+# Anything ending in `.conf` under scripts/ is gitignored (only `.example`
+# files are committed) — but stash this outside the repo regardless;
+# operator-managed config has no business living in a tracked checkout.
+
+# --- WireGuard ---------------------------------------------------------------
+
+# Path to the file containing the Pi's WireGuard private key.
+# Generate on the operator's laptop:
+#   wg genkey | tee pi.key | wg pubkey > pi.pub
+# Then `scp pi.key root@pi:/root/aceso-keys/pi.key && chmod 0600 ...`.
+WG_PRIVKEY_FILE=/root/aceso-keys/pi.key
+
+# CX23's WireGuard public key (the contents of cx23.pub, base64).
+WG_PEER_PUBKEY=
+
+# CX23's public IPv4/IPv6 + UDP port. Hetzner's CX23 must accept UDP on
+# this port from anywhere (per the V0 deploy decision: WG auth is
+# cryptographic; IP allowlisting is brittle because the Pi's home IP rotates).
+WG_PEER_ENDPOINT=
+
+# Pi's address inside the tunnel (CIDR form).
+WG_PI_ADDRESS=10.10.0.2/24
+
+# CX23's address inside the tunnel, host form (used for AllowedIPs).
+WG_PEER_ALLOWED=10.10.0.1/32
+
+# --- Ollama ------------------------------------------------------------------
+
+# Pinned Ollama release. Update both fields together; the script verifies
+# the downloaded binary against OLLAMA_SHA256 before installing it.
+# Find the canonical hash on the release page:
+#   https://github.com/ollama/ollama/releases/tag/v${OLLAMA_VERSION}
+# Look for `ollama-linux-arm64` in `sha256sums.txt`.
+OLLAMA_VERSION=0.5.7
+
+# REQUIRED. Empty values cause the script to abort — there is no
+# fallback default, because a stale committed default is exactly the
+# class of supply-chain mistake we are trying to avoid.
+OLLAMA_SHA256=
+
+# Ollama model tag to pre-pull. Default per the V0 deploy plan:
+# Qwen 2.5 7B Instruct, Q4_K_M quantisation. The benchmark gate at the
+# end of pi-setup.sh fails if median diagnose latency > 60s; if that
+# triggers, switch to qwen2.5:3b-instruct-q4_K_M and re-run.
+OLLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M

@@ -39,6 +39,7 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
 - `agent/go.mod` — module manifest, toolchain pin (`go1.26.2`)
 - `agent/Dockerfile` — multi-stage build, static binary, non-root runtime
 - `docker-compose.yml` — `aceso` service, named volume for `/data`, external `monitoring` network
+- `scripts/` — Pi inference plane deployment: `pi-setup.sh` (hardening + WG + pinned Ollama + benchmark gate), `cx23-setup.sh` (CX23 WG side + cross-tunnel smoke), `templates/` (WG conf templates, ollama.service, conf examples). Operator runbook in [`docs/pi-deploy.md`](docs/pi-deploy.md).
 - `docs/` — topic docs, sized for AI context (see rules below)
 
 ## Rules for agents working here

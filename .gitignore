@@ -22,6 +22,12 @@ incidents.json
 .env.*
 !.env.example
 
+# Pi-deploy operator configs (real values live outside the repo;
+# only the *.example templates are committed). See docs/pi-deploy.md.
+scripts/*.conf
+scripts/templates/*.conf
+!scripts/templates/*.conf.example
+
 # Editor & OS clutter
 .idea/
 .vscode/

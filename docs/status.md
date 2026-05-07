@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-07 (cloud fallbacks removed, human-escalation layer added)
+> Last updated: 2026-05-07 (Pi inference plane scripts + deploy runbook landed)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -36,7 +36,7 @@
 | Default model `gemma2:2b` | `wired` | Configurable via `OLLAMA_MODEL`. No A/B between models yet. |
 | Prompt stability (sorted labels, deterministic ordering) | `wired` | `agent/brain.go:buildPrompt`. |
 | Local-only `Backend` chain (`Backend` interface + `FallbackChain`) | `wired` | `agent/backends.go`, `agent/fallback.go`. V0 only registers `OllamaBackend`; the `buildBackendChain` switch rejects all unknown names (including `deepseek`/`gemini`/`openai`) so a misconfigured `BACKEND_ORDER` cannot resurrect cloud paths — they are not in the binary. See CLAUDE.md rule 11. |
-| Ollama-on-Tailscale (Pi as primary backend) | `planned` | Compose env allows `OLLAMA_URL` to point at a Tailscale IP. Validation against a real Pi is the next deploy milestone (separate plan). |
+| Ollama-on-WireGuard (Pi as primary backend) | `wired` | Tailscale was rejected for V0 (third-party trust path conflicts with rule 11). Plain WireGuard + pinned Ollama install scripts are committed under `scripts/`; see [`pi-deploy.md`](pi-deploy.md). The agent uses the existing `OllamaBackend` with `OLLAMA_URL` pointed at the Pi's tunnel IP — no new backend type. Awaiting first-deploy + 1-week soak before flipping to `shipped`. |
 
 ## Escalation
 
@@ -113,6 +113,31 @@ loop" layer that V1's approval UI will eventually formalize.
 | `agent/backends.go` | `wired` | `backends_test.go`: `OllamaBackend` round-trip via `httptest.Server` confirming the wrapper is transparent. The cloud-backend tests were removed alongside the cloud backends themselves. |
 | `agent/fallback.go` | `wired` | `fallback_test.go`: success on first healthy backend, fall-through on failure, all-fail returns wrapped error with every per-backend message, empty chain rejected, pre-cancelled context short-circuits, `buildBackendChain` default order, **rejects cloud backends** (defense-in-depth), errors when only unknown names are supplied. |
 | `agent/escalate.go` | `wired` | `escalate_test.go`: empty-URL log-only path (no HTTP), full POST with body + `Title`/`Priority`/`Tags` headers verified against `httptest.Server`, non-2xx surfaced, transport failure surfaced. |
+
+## Pi inference plane
+
+| Capability | Status | Notes |
+|------------|--------|-------|
+| WireGuard tunnel scripts (`scripts/pi-setup.sh`, `scripts/cx23-setup.sh`) | `wired` | Plain WG, no Tailscale. Operator-driven key generation; conf files gitignored; templates committed. UDP 51820 open from anywhere on the CX23 (WG auth is cryptographic). See [`pi-deploy.md`](pi-deploy.md). |
+| Pi base hardening | `wired` | `pi-setup.sh` Phase 1: ufw default-deny, key-only SSH (with lockout-protection precondition: refuses to disable password auth unless at least one user has a non-empty `authorized_keys`), unattended-upgrades for the security pocket only, unprivileged `aceso` service user. fail2ban deliberately omitted — with password auth disabled there is nothing to brute-force. |
+| Ollama install (pinned binary, SHA256-verified) | `wired` | `pi-setup.sh` Phase 3: downloads `ollama-linux-arm64` from the GitHub release tagged `v${OLLAMA_VERSION}`, verifies against operator-provided `OLLAMA_SHA256` (no default — script aborts if unset), installs `scripts/templates/ollama.service` with hardening directives, binds Ollama to the WG IP only. |
+| Model pre-pull + benchmark gate | `wired` | `pi-setup.sh` Phase 3b: 3 sequential diagnose-shaped prompts; first run discarded (cold load); both warm runs must complete in ≤60s. Failure: operator switches `OLLAMA_MODEL` to `qwen2.5:3b-instruct-q4_K_M` and re-runs. Default is `qwen2.5:7b-instruct-q4_K_M`. |
+| Cross-tunnel smoke test | `wired` | `cx23-setup.sh` ends with `POST /api/generate` over the tunnel and asserts the response decodes to `{cause, suggested_action}`. Same prompt shape the agent uses, so a green smoke run is a strong predictor for Phase 4. |
+| Pi-ready receipt (`/etc/aceso/pi-ready`) | `wired` | Stamped at end of `pi-setup.sh` with `ready_at`, `ollama_version`, `ollama_model`, `warm_max_seconds`, `kernel`. Human-readable; not consumed by the agent. |
+| First production deploy | `not started` | Phase 4 in `pi-deploy.md`. Flip is a 5-minute `.env` edit + `docker compose restart`. |
+| 1-week soak before prod flip | `not started` | Per Phase 5 in `pi-deploy.md`: synthetic alerts via dev stack, watch for memory leaks / tunnel staleness / model drift / SD-card write pressure. 24h is not enough — slow leaks need time. |
+
+## V0 out-of-scope (deliberate deferrals — record only, do not build)
+
+These are known concerns the V0 deploy plan explicitly does *not*
+address. Documented here so future-us doesn't waste time rediscovering
+them, and so V1 planning has a clear backlog to draw from.
+
+| Concern | Why deferred | Trigger to revisit |
+|---------|-------------|--------------------|
+| Pi-side `node_exporter` / metrics about the Pi itself | The Pi's metrics would have to flow back to the CX23's Prometheus over the same WG tunnel — fine, but adds another systemd unit, another scrape config, and another failure mode to monitor. V0 relies on `journalctl -u ollama` + the Pi-ready receipt for soak-time observability. | First time an outage's root cause would have been visible only through Pi-side metrics. |
+| Model-registry trust (ollama.com) | `ollama pull` fetches model weights from `https://registry.ollama.ai`. That registry's signing/integrity story is opaque from our end — we trust ollama.com the same way `apt-get` trusts Debian's keyring, on TLS + reputation. The pinned binary install closes the *binary* supply-chain hole; the model layer is one level deeper and unaddressed. | First time a model-weight integrity issue is publicly disclosed, or first time we want to ship our own fine-tune (which would put weights under operator control). |
+| Escalation rate limiting / dedup | Already flagged in the V0 escalation contract as "loud failure is good failure". The Pi makes this more pressing: with the Pi as the *sole* inference path and no localhost fallback, a Pi outage produces N escalations per tick × ticks-until-fixed. ntfy.sh has its own per-topic rate limits, so the operator gets paged correctly even if the volume is high — but `incidents.json` will accumulate one `escalated:true` line per failed tick, which a V1 review UI will need to coalesce. The "no startup health check" decision in `agent/main.go` is consistent with this stance: fail loudly on the first real tick rather than fail more loudly with a redundant pre-tick probe. | First V1 review-UI work, or first real-world incident where the escalation volume itself becomes a problem. |
 
 ## Deploy
 

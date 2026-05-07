@@ -1,0 +1,42 @@
+# cx23-setup.conf — operator-managed configuration for scripts/cx23-setup.sh.
+#
+# Copy to a non-committed path (recommended: /etc/aceso-cx23.conf, mode 0600,
+# root-owned) and fill in. cx23-setup.sh sources it as bash variables.
+#
+#   sudo cp scripts/templates/cx23-setup.conf.example /etc/aceso-cx23.conf
+#   sudo chmod 0600 /etc/aceso-cx23.conf
+#   sudo $EDITOR /etc/aceso-cx23.conf
+#   sudo ./scripts/cx23-setup.sh /etc/aceso-cx23.conf
+#
+# Anything ending in `.conf` under scripts/ is gitignored.
+
+# --- WireGuard ---------------------------------------------------------------
+
+# Path to the file containing the CX23's WireGuard private key.
+# Generate on the operator's laptop:
+#   wg genkey | tee cx23.key | wg pubkey > cx23.pub
+# Then `scp cx23.key root@cx23:/root/aceso-keys/cx23.key && chmod 0600 ...`.
+WG_PRIVKEY_FILE=/root/aceso-keys/cx23.key
+
+# Pi's WireGuard public key (contents of pi.pub, base64).
+WG_PEER_PUBKEY=
+
+# CX23's address inside the tunnel (CIDR).
+WG_CX23_ADDRESS=10.10.0.1/24
+
+# UDP port the CX23 listens on for WG. The Hetzner cloud firewall must
+# accept UDP on this port from anywhere (per V0 deploy decision).
+WG_CX23_PORT=51820
+
+# Pi's address inside the tunnel, host form (used for AllowedIPs).
+WG_PEER_ALLOWED=10.10.0.2/32
+
+# --- Verification ------------------------------------------------------------
+
+# URL the post-setup smoke test hits to confirm the Pi's Ollama is
+# reachable across the tunnel and serving the configured model.
+# Should match the OLLAMA_URL the agent will use after Phase 4.
+PI_TEST_URL=http://10.10.0.2:11434
+
+# Model the smoke test expects to find under /api/tags.
+PI_TEST_MODEL=qwen2.5:7b-instruct-q4_K_M

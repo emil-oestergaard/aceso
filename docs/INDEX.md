@@ -19,6 +19,7 @@ no existing doc fits, add a new file here and link it from this index.
 |------|---------|--------|
 | [`status.md`](status.md) | Living capability matrix — which alerts, models, deliverables, and remediation tiers are wired vs. stubbed vs. planned. | active |
 | [`dev-stack.md`](dev-stack.md) | How to bring up the local Prometheus + Loki + Promtail + Ollama + Aceso stack via `docker-compose.dev.yml` and run the first end-to-end smoke test. | active |
+| [`pi-deploy.md`](pi-deploy.md) | Operator runbook for the Pi inference plane: WireGuard tunnel, pinned-Ollama install, benchmark gate, soak, key rotation, no-rollback semantics. Pairs with `scripts/pi-setup.sh` and `scripts/cx23-setup.sh`. | active |
 
 ## Planned docs
 
