@@ -29,8 +29,9 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	log.Printf("starting | prometheus=%s loki=%s ollama=%s model=%s order=%v interval=%s",
-		cfg.PrometheusURL, cfg.LokiURL, cfg.OllamaURL, cfg.OllamaModel, cfg.BackendOrder, cfg.PollInterval)
+	ntfyConfigured := cfg.EscalateNtfyURL != ""
+	log.Printf("starting | prometheus=%s loki=%s ollama=%s model=%s order=%v ntfy=%t interval=%s",
+		cfg.PrometheusURL, cfg.LokiURL, cfg.OllamaURL, cfg.OllamaModel, cfg.BackendOrder, ntfyConfigured, cfg.PollInterval)
 
 	prom := newPrometheusClient(cfg.PrometheusURL, cfg.HTTPTimeout)
 	loki := newLokiClient(cfg.LokiURL, cfg.HTTPTimeout)
@@ -40,7 +41,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("backend chain: %v", err)
 	}
-	brain := newBrain(cfg, prom, loki, chain)
+	escalator := newNtfyEscalator(cfg.EscalateNtfyURL, cfg.HTTPTimeout)
+	brain := newBrain(cfg, prom, loki, chain, escalator)
 
 	// Cancellable root context, cancelled on SIGINT/SIGTERM so a `docker stop`
 	// or Ctrl-C exits cleanly mid-tick.

@@ -21,7 +21,16 @@ type Config struct {
 	// tries in order. V0 only knows one backend ("ollama"); the field exists
 	// so future revisions can add a second local path (e.g. an on-VPS small
 	// model) without restructuring the chain. Default: ["ollama"].
+	//
+	// Cloud LLM backends are not supported and never will be — see
+	// CLAUDE.md "Inference is local-only".
 	BackendOrder []string
+
+	// EscalateNtfyURL, if set, is the ntfy.sh topic URL the Escalator POSTs
+	// to when every backend in the chain fails. Empty means "log only" —
+	// the structured log line is always emitted regardless.
+	// Example: https://ntfy.sh/aceso-emil-7f3a9b
+	EscalateNtfyURL string
 
 	// IncidentsPath is the on-disk file Aceso appends incident records to.
 	// In Docker this is mounted from a named volume so history survives restarts.
@@ -31,8 +40,8 @@ type Config struct {
 	PollInterval time.Duration
 
 	// HTTPTimeout is applied to every outbound HTTP call (Prometheus, Loki,
-	// and every LLM backend). Ollama generations on small models can take a
-	// while, so we keep this generous.
+	// Ollama, ntfy). Ollama generations on small models can take a while,
+	// so we keep this generous.
 	HTTPTimeout time.Duration
 }
 
@@ -40,14 +49,15 @@ type Config struct {
 // Required URLs cause a hard failure; everything else falls back to sane defaults.
 func loadConfig() (*Config, error) {
 	cfg := &Config{
-		PrometheusURL: os.Getenv("PROMETHEUS_URL"),
-		LokiURL:       os.Getenv("LOKI_URL"),
-		OllamaURL:     os.Getenv("OLLAMA_URL"),
-		OllamaModel:   getenvDefault("OLLAMA_MODEL", "gemma2:2b"),
-		BackendOrder:  parseCSVDefault("BACKEND_ORDER", []string{"ollama"}),
-		IncidentsPath: getenvDefault("INCIDENTS_PATH", "/data/incidents.json"),
-		PollInterval:  parseSecondsDefault("POLL_INTERVAL_SECONDS", 30),
-		HTTPTimeout:   parseSecondsDefault("HTTP_TIMEOUT_SECONDS", 120),
+		PrometheusURL:   os.Getenv("PROMETHEUS_URL"),
+		LokiURL:         os.Getenv("LOKI_URL"),
+		OllamaURL:       os.Getenv("OLLAMA_URL"),
+		OllamaModel:     getenvDefault("OLLAMA_MODEL", "gemma2:2b"),
+		BackendOrder:    parseCSVDefault("BACKEND_ORDER", []string{"ollama"}),
+		EscalateNtfyURL: os.Getenv("ESCALATE_NTFY_URL"),
+		IncidentsPath:   getenvDefault("INCIDENTS_PATH", "/data/incidents.json"),
+		PollInterval:    parseSecondsDefault("POLL_INTERVAL_SECONDS", 30),
+		HTTPTimeout:     parseSecondsDefault("HTTP_TIMEOUT_SECONDS", 120),
 	}
 
 	missing := []string{}

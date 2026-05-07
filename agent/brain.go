@@ -14,27 +14,43 @@ import (
 
 // Brain is the orchestrator: it pulls alerts, hydrates them with logs,
 // asks the configured backend (single or fallback chain) for a diagnosis,
-// and persists the incident to disk.
+// and persists the incident to disk. When the backend chain fails, the
+// alert is escalated to a human via the Escalator and a record with
+// `escalated: true` is persisted instead of a (made-up) diagnosis.
 type Brain struct {
 	cfg        *Config
 	prometheus *PrometheusClient
 	loki       *LokiClient
 	backend    Backend
+	escalator  Escalator
 }
 
-func newBrain(cfg *Config, p *PrometheusClient, l *LokiClient, b Backend) *Brain {
-	return &Brain{cfg: cfg, prometheus: p, loki: l, backend: b}
+func newBrain(cfg *Config, p *PrometheusClient, l *LokiClient, b Backend, e Escalator) *Brain {
+	return &Brain{cfg: cfg, prometheus: p, loki: l, backend: b, escalator: e}
 }
 
 // Incident is the durable record persisted to incidents.json.
-// Each Tick that produces a diagnosis appends one of these.
+// Each Tick that produces a diagnosis OR escalates appends one of these.
+//
+// Schema notes (see CLAUDE.md rule 10):
+//   - `diagnosis` is always present. For escalated incidents it is
+//     zero-valued ({"cause":"","suggested_action":""}); consumers should
+//     branch on `escalated` rather than empty-string-checking the
+//     diagnosis fields.
+//   - `error` carries partial-failure context regardless of escalation
+//     (e.g., logs unavailable but diagnosis succeeded; or backend chain
+//     failure that triggered escalation).
+//   - `escalated` is omitted on success-path lines so existing readers
+//     see the original schema unchanged. New readers should treat
+//     `escalated: true` as "no diagnosis was obtained — a human was
+//     notified".
 type Incident struct {
 	Timestamp time.Time `json:"timestamp"`
 	Alert     Alert     `json:"alert"`
 	LogLines  []LogLine `json:"log_lines"`
 	Diagnosis Diagnosis `json:"diagnosis"`
-	// Error captures any partial-failure context (e.g., logs unavailable).
-	Error string `json:"error,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	Escalated bool      `json:"escalated,omitempty"`
 }
 
 // Tick runs one full polling cycle. It is safe to call repeatedly and
@@ -73,9 +89,12 @@ func (b *Brain) diagnoseAlert(ctx context.Context, alert Alert) {
 	prompt := buildPrompt(alert, logs)
 	diagnosis, err := b.backend.Diagnose(ctx, prompt)
 	if err != nil {
-		log.Printf("[brain] diagnose failed for %s: %v", alert.Name(), err)
-		// No diagnosis means there's nothing actionable to persist for V0.
-		// The backend (single or chain) has already logged per-backend detail.
+		// Every backend failed. Per handoff.md, Aceso must NOT invent a
+		// diagnosis when the inference plane is unreachable — it must
+		// escalate to a human and persist the escalation as a durable
+		// record (so V1's review UI can replay missed cases).
+		log.Printf("[brain] diagnose failed for %s: %v — escalating", alert.Name(), err)
+		b.escalateAlert(ctx, alert, logs, partialErr, err)
 		return
 	}
 
@@ -91,6 +110,37 @@ func (b *Brain) diagnoseAlert(ctx context.Context, alert Alert) {
 	}
 	if err := appendIncident(b.cfg.IncidentsPath, incident); err != nil {
 		log.Printf("[brain] persist failed: %v", err)
+	}
+}
+
+// escalateAlert is the failure-mode counterpart to the success path:
+// notify the human, then persist a record so the incident log shows
+// what we couldn't see at decision time. Both steps are best-effort —
+// a notification failure must not block persistence, and a persistence
+// failure must not silently swallow the escalation.
+func (b *Brain) escalateAlert(ctx context.Context, alert Alert, logs []LogLine, partialErr string, backendErr error) {
+	if escErr := b.escalator.Escalate(ctx, alert, backendErr); escErr != nil {
+		log.Printf("[brain] escalation notification failed: %v", escErr)
+	}
+
+	// Compose the on-disk error string so a future reader can tell what
+	// failed where: a Loki failure that preceded an Ollama failure looks
+	// different from a clean backend-only failure, and we want both
+	// signals preserved.
+	combinedErr := "backend: " + backendErr.Error()
+	if partialErr != "" {
+		combinedErr = partialErr + "; " + combinedErr
+	}
+
+	incident := Incident{
+		Timestamp: time.Now().UTC(),
+		Alert:     alert,
+		LogLines:  logs,
+		Error:     combinedErr,
+		Escalated: true,
+	}
+	if err := appendIncident(b.cfg.IncidentsPath, incident); err != nil {
+		log.Printf("[brain] persist (escalated) failed: %v", err)
 	}
 }
 

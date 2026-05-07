@@ -1,6 +1,11 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -159,5 +164,101 @@ func TestBuildPromptOmitsOptionalFieldsWhenAbsent(t *testing.T) {
 		if strings.Contains(got, banned) {
 			t.Errorf("expected %q to be omitted when absent; full prompt:\n%s", banned, got)
 		}
+	}
+}
+
+// fakeFailingBackend always returns an error from Diagnose. Used by the
+// escalation test to drive the failure path of Brain.diagnoseAlert without
+// any HTTP traffic.
+type fakeFailingBackend struct{ err error }
+
+func (f *fakeFailingBackend) Diagnose(context.Context, string) (Diagnosis, error) {
+	return Diagnosis{}, f.err
+}
+
+// recordingEscalator captures the args of the last Escalate call so the
+// test can assert that escalation actually fired with the right alert and
+// the underlying backend error.
+type recordingEscalator struct {
+	calls       int
+	lastAlert   Alert
+	lastErr     error
+	returnError error
+}
+
+func (r *recordingEscalator) Escalate(_ context.Context, alert Alert, err error) error {
+	r.calls++
+	r.lastAlert = alert
+	r.lastErr = err
+	return r.returnError
+}
+
+// TestDiagnoseAlertEscalatesOnBackendFailure pins the new escalation
+// behaviour: when the backend chain returns an error, the Brain must
+//
+//  1. notify the human via Escalator.Escalate (single call, with the
+//     original backend error preserved), AND
+//  2. persist an Incident with `escalated: true` so the on-disk log
+//     reflects what the agent could not see at decision time.
+//
+// Both halves are load-bearing — silently dropping the alert or silently
+// inventing a diagnosis would each be category errors per handoff.md.
+func TestDiagnoseAlertEscalatesOnBackendFailure(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	incidentsPath := filepath.Join(tmp, "incidents.json")
+
+	cfg := &Config{IncidentsPath: incidentsPath, HTTPTimeout: time.Second}
+	failing := &fakeFailingBackend{err: errors.New("synthetic-failure")}
+	rec := &recordingEscalator{}
+
+	// We don't actually exercise prometheus / loki here — diagnoseAlert
+	// is called directly with a hand-built Alert, and Loki calls are
+	// allowed to fail because the logs are nil-safe in the prompt and
+	// in the persisted incident.
+	brain := newBrain(cfg, nil, newLokiClient("http://example.invalid", time.Second), failing, rec)
+
+	alert := Alert{
+		Labels: map[string]string{"alertname": "BareAlert"},
+		State:  "firing",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	brain.diagnoseAlert(ctx, alert)
+
+	if rec.calls != 1 {
+		t.Fatalf("escalator.calls = %d, want 1", rec.calls)
+	}
+	if rec.lastAlert.Name() != "BareAlert" {
+		t.Errorf("escalated alert name = %q, want BareAlert", rec.lastAlert.Name())
+	}
+	if rec.lastErr == nil || !strings.Contains(rec.lastErr.Error(), "synthetic-failure") {
+		t.Errorf("escalated err = %v, want substring 'synthetic-failure'", rec.lastErr)
+	}
+
+	raw, err := os.ReadFile(incidentsPath)
+	if err != nil {
+		t.Fatalf("reading incidents file: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("incidents file has %d lines, want 1\n--- contents ---\n%s", len(lines), raw)
+	}
+
+	var inc Incident
+	if err := json.Unmarshal([]byte(lines[0]), &inc); err != nil {
+		t.Fatalf("decoding persisted incident: %v\n--- raw ---\n%s", err, lines[0])
+	}
+	if !inc.Escalated {
+		t.Errorf("persisted incident has Escalated=false, want true; raw=%s", lines[0])
+	}
+	if inc.Diagnosis.Cause != "" || inc.Diagnosis.SuggestedAction != "" {
+		t.Errorf("escalated incident must not carry an invented diagnosis, got %+v", inc.Diagnosis)
+	}
+	if !strings.Contains(inc.Error, "backend: synthetic-failure") {
+		t.Errorf("inc.Error = %q, want 'backend: synthetic-failure' substring", inc.Error)
 	}
 }

@@ -34,7 +34,8 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
 - `agent/ollama.go` — client for `/api/generate`, JSON-output parser with prose-fence recovery
 - `agent/backends.go` — `Backend` interface + `OllamaBackend` + `buildBackendChain` resolver
 - `agent/fallback.go` — `FallbackChain` that tries each backend in order and returns the first success or a wrapped error if all fail
-- `agent/brain.go` — orchestrator: prompt construction + NDJSON incident persistence
+- `agent/escalate.go` — `Escalator` that surfaces backend-chain failures to a human via a structured log line and (optionally) an ntfy.sh push
+- `agent/brain.go` — orchestrator: prompt construction + NDJSON incident persistence + escalation routing on chain failure
 - `agent/go.mod` — module manifest, toolchain pin (`go1.26.2`)
 - `agent/Dockerfile` — multi-stage build, static binary, non-root runtime
 - `docker-compose.yml` — `aceso` service, named volume for `/data`, external `monitoring` network

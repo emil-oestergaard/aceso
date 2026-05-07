@@ -19,8 +19,13 @@ Every `POLL_INTERVAL_SECONDS` (default 30s) Aceso:
    production the recommended topology is a 16 GB Raspberry Pi running
    Ollama, reached over a Tailscale tunnel from the VPS; in dev,
    `docker-compose.dev.yml` ships a local Ollama container.
-4. Logs the diagnosis to stdout and appends the full incident as a JSON
-   line to `/data/incidents.json`.
+4. **On success:** logs the diagnosis to stdout and appends the full
+   incident as a JSON line to `/data/incidents.json`.
+5. **On failure (Ollama unreachable / errored):** does NOT invent a
+   diagnosis. Instead, escalates to a human via a structured `[escalate]`
+   log line and (optionally) an ntfy.sh push, and persists an incident
+   with `"escalated": true` so the on-disk log shows what the agent
+   could not see at decision time.
 
 The agent is stateless except for `incidents.json` — restart it as often
 as you like.
@@ -40,7 +45,8 @@ aceso/
 │   ├── ollama.go           # /api/generate client
 │   ├── backends.go         # Backend interface + OllamaBackend
 │   ├── fallback.go         # FallbackChain (tries each backend in order)
-│   ├── brain.go            # prompt builder + incident persistence
+│   ├── escalate.go         # Escalator (log line + ntfy.sh push on chain failure)
+│   ├── brain.go            # prompt builder + incident persistence + escalation routing
 │   └── go.mod
 ├── config/                 # dev-stack configs (prometheus, loki, promtail)
 ├── docs/                   # status, INDEX, dev-stack, etc.
@@ -60,6 +66,7 @@ as the stack grows.
 | `OLLAMA_URL`            | yes      | —                          | Base URL, e.g. `http://ollama:11434` or a Tailscale IP for an off-VPS Pi.        |
 | `OLLAMA_MODEL`          | no       | `gemma2:2b`                | Any locally-pulled Ollama model.                                                 |
 | `BACKEND_ORDER`         | no       | `ollama`                   | Comma-separated chain. V0 only supports `ollama`; unknown names are skipped.     |
+| `ESCALATE_NTFY_URL`     | no       | —                          | ntfy.sh topic URL for push alerts when the LLM chain fails. Empty = log only.    |
 | `INCIDENTS_PATH`        | no       | `/data/incidents.json`     | NDJSON, one incident per line.                                                   |
 | `POLL_INTERVAL_SECONDS` | no       | `30`                       | Cadence of the observe loop.                                                     |
 | `HTTP_TIMEOUT_SECONDS`  | no       | `120`                      | Per-call timeout (Ollama can be slow on first generation).                       |
