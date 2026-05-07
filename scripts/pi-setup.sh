@@ -56,6 +56,42 @@ need systemctl
 need install
 need sed
 need sha256sum
+need curl
+
+# ----------------------------------------------------------------------------
+# Phase 0b — pre-verify the Ollama binary BEFORE any destructive change.
+#
+# Rationale: if OLLAMA_SHA256 is wrong, the script must abort with the Pi
+# unmodified. Doing the download + checksum here means apt-get full-upgrade,
+# sshd_config edits, ufw reset, and WireGuard install all only happen if
+# we already have a trusted binary on disk.
+# ----------------------------------------------------------------------------
+
+OLLAMA_BIN=/usr/local/bin/ollama
+OLLAMA_URL="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-arm64"
+OLLAMA_TMP="$(mktemp)"
+trap 'rm -f "$OLLAMA_TMP"' EXIT
+
+# Skip the download if the installed version already matches — the
+# binary on disk is implicitly trusted from a previous successful run.
+INSTALLED_VERSION=""
+if [[ -x "$OLLAMA_BIN" ]]; then
+    INSTALLED_VERSION="$("$OLLAMA_BIN" --version 2>/dev/null | awk '{print $NF}' || true)"
+fi
+if [[ "$INSTALLED_VERSION" == "$OLLAMA_VERSION" ]]; then
+    log "Phase 0b: ollama v${OLLAMA_VERSION} already installed (skipping pre-verify download)"
+    OLLAMA_PREVERIFIED=1
+else
+    log "Phase 0b: downloading + verifying ollama v${OLLAMA_VERSION} (pre-flight, no system changes yet)"
+    log "  $OLLAMA_URL"
+    curl -fsSL --retry 3 -o "$OLLAMA_TMP" "$OLLAMA_URL"
+    ACTUAL_SHA="$(sha256sum "$OLLAMA_TMP" | awk '{print $1}')"
+    if [[ "$ACTUAL_SHA" != "$OLLAMA_SHA256" ]]; then
+        die "checksum mismatch! expected $OLLAMA_SHA256 got $ACTUAL_SHA — aborting before installing untrusted binary (Pi is still unmodified at this point)"
+    fi
+    log "  sha256 verified: $ACTUAL_SHA"
+    OLLAMA_PREVERIFIED=0
+fi
 
 # ----------------------------------------------------------------------------
 # Phase 1 — base hardening
@@ -137,7 +173,9 @@ PI_PRIVKEY="$(cat "$WG_PRIVKEY_FILE")"
 [[ -n "$PI_PRIVKEY" ]] || die "WG_PRIVKEY_FILE is empty: $WG_PRIVKEY_FILE"
 
 WG_TMP="$(mktemp)"
-trap 'rm -f "$WG_TMP"' EXIT
+# Replace the Phase 0b trap so BOTH temp files are removed on exit.
+# Bash traps overwrite — consolidate explicitly.
+trap 'rm -f "$OLLAMA_TMP" "$WG_TMP"' EXIT
 # Substitute placeholders. Using `|` as the sed delimiter because the
 # values contain `/` (CIDRs) and `:` (endpoints).
 sed \
@@ -149,7 +187,11 @@ sed \
     "$TEMPLATES_DIR/wg0-pi.conf.tmpl" >"$WG_TMP"
 install -m 0600 -o root -g root "$WG_TMP" /etc/wireguard/wg0.conf
 
-systemctl enable --now wg-quick@wg0
+# Restart unconditionally so config edits in this run take effect on
+# re-runs. `enable --now` would only start a stopped unit, leaving the
+# old config running on a re-run — a real idempotency bug.
+systemctl enable wg-quick@wg0 >/dev/null
+systemctl restart wg-quick@wg0
 # Verification: ping the peer inside the tunnel before declaring Phase 2
 # done. If the tunnel is wrong the rest of the script is moot.
 PEER_PING_TARGET="${WG_PEER_ALLOWED%/*}"
@@ -165,34 +207,17 @@ log "  tunnel up: $(wg show wg0 latest-handshakes | head -n1)"
 
 log "Phase 3: Ollama install (pinned v${OLLAMA_VERSION})"
 
-OLLAMA_BIN=/usr/local/bin/ollama
-OLLAMA_URL="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-arm64"
-OLLAMA_TMP="$(mktemp)"
-# Append cleanup to the existing trap so both temp files are removed on
-# exit, regardless of which step exits.
-trap 'rm -f "$WG_TMP" "$OLLAMA_TMP"' EXIT
-
-# Skip the download if the installed version already matches.
-INSTALLED_VERSION=""
-if [[ -x "$OLLAMA_BIN" ]]; then
-    INSTALLED_VERSION="$("$OLLAMA_BIN" --version 2>/dev/null | awk '{print $NF}' || true)"
-fi
-if [[ "$INSTALLED_VERSION" == "$OLLAMA_VERSION" ]]; then
-    log "  ollama v${OLLAMA_VERSION} already installed"
-else
-    log "  downloading $OLLAMA_URL"
-    curl -fsSL --retry 3 -o "$OLLAMA_TMP" "$OLLAMA_URL"
-    ACTUAL_SHA="$(sha256sum "$OLLAMA_TMP" | awk '{print $1}')"
-    if [[ "$ACTUAL_SHA" != "$OLLAMA_SHA256" ]]; then
-        die "checksum mismatch! expected $OLLAMA_SHA256 got $ACTUAL_SHA — aborting before installing untrusted binary"
-    fi
-    log "  sha256 verified: $ACTUAL_SHA"
+# Install the pre-verified binary from Phase 0b. If we skipped the
+# download (already installed at the right version), this is a no-op.
+if [[ "${OLLAMA_PREVERIFIED:-0}" -eq 0 ]]; then
     install -m 0755 -o root -g root "$OLLAMA_TMP" "$OLLAMA_BIN"
 fi
 
 install -m 0644 -o root -g root "$TEMPLATES_DIR/ollama.service" /etc/systemd/system/ollama.service
 systemctl daemon-reload
-systemctl enable --now ollama
+# Restart unconditionally so unit-file edits in this run take effect.
+systemctl enable ollama >/dev/null
+systemctl restart ollama
 
 # Wait for Ollama to bind. /api/tags returns 200 once the server is up,
 # even before any model is pulled.

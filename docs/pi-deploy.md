@@ -36,6 +36,14 @@ configuration**. Reasons:
 works on either. The recommendation is purely operational: if the Pi
 will run more than a few months, swap to NVMe early.
 
+**Hardware sanity check:** the script does a *loose* substring match
+against `/proc/device-tree/model` for the literal `Raspberry Pi`. Any
+Pi model passes (Pi 3, Pi 4, Pi 5, Pi Zero) — only the *type of host*
+is checked, not the *generation*. The 7B Q4 model needs ~6 GB resident,
+so the operator is responsible for picking a Pi with enough RAM
+(recommended: Pi 5 / 16 GB; minimum: Pi 5 / 8 GB with the 3B fallback
+model).
+
 ## Order of operations
 
 | Phase | Where | Script | Output |
@@ -163,6 +171,46 @@ If the Pi misbehaves after the flip:
 
 If you need a faster recovery path than this, that's a V1 capability
 discussion — not a hot-fix decision.
+
+### Phase 4: emergency mute (when "fix the Pi" will take a while)
+
+"Fix the Pi" is the *design* rollback, but during a prolonged outage
+(parts ordered, Pi unbootable, you're on a flight) the escalation
+volume can itself become a problem — `incidents.json` keeps growing,
+ntfy keeps pushing, and the on-call channel turns into noise.
+
+The emergency mute is to stop the agent entirely on the CX23:
+
+```sh
+docker compose stop aceso       # silences the agent immediately
+docker compose logs --tail 5 aceso   # confirms it's stopped
+```
+
+Important properties:
+
+- **Prometheus and AlertManager keep running.** The underlying alert
+  pipeline below the agent is unaffected; whatever notifies you about
+  alerts today still notifies you. You're only silencing the
+  diagnose-and-escalate layer.
+- **`incidents.json` stops growing.** The file is preserved; restart
+  resumes appending.
+- **It's loud silence.** The CX23's process supervisor will not
+  re-launch the container. `docker compose ps` shows `Exit 0`. There
+  is no way to "accidentally have aceso muted" — anyone running
+  `docker compose ps` sees it immediately.
+
+To resume after the Pi is fixed:
+
+```sh
+docker compose start aceso
+docker compose logs -f aceso    # watch the first tick
+```
+
+Do **not** add a flag, env var, or config option that mutes the agent
+without stopping it. Same reasoning as the cloud-backend removal:
+mute-toggles rot, and a misconfigured mute that survives a restart
+would silently disarm the entire observability layer. Use
+`docker compose stop` — visible at the supervisor level.
 
 ## Phase 5: soak
 
