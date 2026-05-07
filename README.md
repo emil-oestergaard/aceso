@@ -13,12 +13,12 @@ Every `POLL_INTERVAL_SECONDS` (default 30s) Aceso:
 1. Pulls firing alerts from Prometheus (`GET /api/v1/alerts`).
 2. For each alert, queries Loki for recent log lines from the affected
    target (`GET /loki/api/v1/query_range`), built from the alert's labels.
-3. Builds a prompt describing the alert + logs and asks the configured
-   LLM backend chain for a diagnosis. The default chain is
-   `ollama → deepseek → gemini`: Ollama is tried first (typically a
-   Tailscale-reachable Pi in prod, or local in dev); on failure the
-   chain falls through to the free-tier DeepSeek and Gemini APIs.
-   Backends without credentials are skipped at startup with a log line.
+3. Builds a prompt describing the alert + logs and asks the local
+   Ollama instance for a diagnosis. **Aceso is local-only by design** —
+   the binary contains no code paths to third-party LLM APIs. In
+   production the recommended topology is a 16 GB Raspberry Pi running
+   Ollama, reached over a Tailscale tunnel from the VPS; in dev,
+   `docker-compose.dev.yml` ships a local Ollama container.
 4. Logs the diagnosis to stdout and appends the full incident as a JSON
    line to `/data/incidents.json`.
 
@@ -38,7 +38,7 @@ aceso/
 │   ├── prometheus.go       # /api/v1/alerts client
 │   ├── loki.go             # /loki/api/v1/query_range client
 │   ├── ollama.go           # /api/generate client
-│   ├── backends.go         # Backend interface + Ollama/DeepSeek/Gemini impls
+│   ├── backends.go         # Backend interface + OllamaBackend
 │   ├── fallback.go         # FallbackChain (tries each backend in order)
 │   ├── brain.go            # prompt builder + incident persistence
 │   └── go.mod
@@ -59,9 +59,7 @@ as the stack grows.
 | `LOKI_URL`              | yes      | —                          | Base URL, e.g. `http://loki:3100`.                                               |
 | `OLLAMA_URL`            | yes      | —                          | Base URL, e.g. `http://ollama:11434` or a Tailscale IP for an off-VPS Pi.        |
 | `OLLAMA_MODEL`          | no       | `gemma2:2b`                | Any locally-pulled Ollama model.                                                 |
-| `BACKEND_ORDER`         | no       | `ollama,deepseek,gemini`   | Comma-separated chain. Backends without creds are skipped at startup.            |
-| `DEEPSEEK_API_KEY`      | no       | —                          | Enables DeepSeek (`deepseek-chat`) as a fallback. Free tier is plenty for V0.    |
-| `GEMINI_API_KEY`        | no       | —                          | Enables Google AI Studio (`gemini-1.5-flash`) as a fallback.                     |
+| `BACKEND_ORDER`         | no       | `ollama`                   | Comma-separated chain. V0 only supports `ollama`; unknown names are skipped.     |
 | `INCIDENTS_PATH`        | no       | `/data/incidents.json`     | NDJSON, one incident per line.                                                   |
 | `POLL_INTERVAL_SECONDS` | no       | `30`                       | Cadence of the observe loop.                                                     |
 | `HTTP_TIMEOUT_SECONDS`  | no       | `120`                      | Per-call timeout (Ollama can be slow on first generation).                       |

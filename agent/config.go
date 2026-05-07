@@ -17,17 +17,10 @@ type Config struct {
 	OllamaURL     string
 	OllamaModel   string
 
-	// DeepSeekAPIKey, if set, enables the DeepSeek backend in the fallback
-	// chain. Optional: deployments running Ollama-only leave this empty.
-	DeepSeekAPIKey string
-
-	// GeminiAPIKey, if set, enables the Google AI Studio (Gemini) backend
-	// in the fallback chain. Optional, same reasoning as DeepSeekAPIKey.
-	GeminiAPIKey string
-
 	// BackendOrder is the comma-separated list of backends the FallbackChain
-	// tries in order. Unknown names and backends without credentials are
-	// skipped at startup with a log line. Default: ["ollama","deepseek","gemini"].
+	// tries in order. V0 only knows one backend ("ollama"); the field exists
+	// so future revisions can add a second local path (e.g. an on-VPS small
+	// model) without restructuring the chain. Default: ["ollama"].
 	BackendOrder []string
 
 	// IncidentsPath is the on-disk file Aceso appends incident records to.
@@ -47,16 +40,14 @@ type Config struct {
 // Required URLs cause a hard failure; everything else falls back to sane defaults.
 func loadConfig() (*Config, error) {
 	cfg := &Config{
-		PrometheusURL:  os.Getenv("PROMETHEUS_URL"),
-		LokiURL:        os.Getenv("LOKI_URL"),
-		OllamaURL:      os.Getenv("OLLAMA_URL"),
-		OllamaModel:    getenvDefault("OLLAMA_MODEL", "gemma2:2b"),
-		DeepSeekAPIKey: os.Getenv("DEEPSEEK_API_KEY"),
-		GeminiAPIKey:   os.Getenv("GEMINI_API_KEY"),
-		BackendOrder:   parseCSVDefault("BACKEND_ORDER", []string{"ollama", "deepseek", "gemini"}),
-		IncidentsPath:  getenvDefault("INCIDENTS_PATH", "/data/incidents.json"),
-		PollInterval:   parseSecondsDefault("POLL_INTERVAL_SECONDS", 30),
-		HTTPTimeout:    parseSecondsDefault("HTTP_TIMEOUT_SECONDS", 120),
+		PrometheusURL: os.Getenv("PROMETHEUS_URL"),
+		LokiURL:       os.Getenv("LOKI_URL"),
+		OllamaURL:     os.Getenv("OLLAMA_URL"),
+		OllamaModel:   getenvDefault("OLLAMA_MODEL", "gemma2:2b"),
+		BackendOrder:  parseCSVDefault("BACKEND_ORDER", []string{"ollama"}),
+		IncidentsPath: getenvDefault("INCIDENTS_PATH", "/data/incidents.json"),
+		PollInterval:  parseSecondsDefault("POLL_INTERVAL_SECONDS", 30),
+		HTTPTimeout:   parseSecondsDefault("HTTP_TIMEOUT_SECONDS", 120),
 	}
 
 	missing := []string{}

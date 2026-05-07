@@ -11,7 +11,13 @@ import (
 // handles unknown names; the parser just normalises whitespace and case.
 func TestParseCSVDefault(t *testing.T) {
 	const envKey = "ACESO_TEST_BACKEND_ORDER"
-	fallback := []string{"ollama", "deepseek", "gemini"}
+	// fallback mirrors the production default in loadConfig: V0 has only
+	// the local Ollama backend. The parser itself is name-agnostic — names
+	// like "deepseek" appear in some test cases below to exercise the
+	// trim/lowercase logic, but they are NOT valid app-level backends and
+	// are rejected at chain-build time (see fallback_test.go's defense-in-
+	// depth test).
+	fallback := []string{"ollama"}
 
 	tests := []struct {
 		name string
@@ -69,7 +75,7 @@ func TestParseCSVDefaultEmptyEnvUsesFallback(t *testing.T) {
 	t.Parallel()
 
 	const envKey = "ACESO_TEST_BACKEND_ORDER_UNSET"
-	fallback := []string{"ollama", "deepseek", "gemini"}
+	fallback := []string{"ollama"}
 
 	got := parseCSVDefault(envKey, fallback)
 	if strings.Join(got, ",") != strings.Join(fallback, ",") {

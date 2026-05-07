@@ -176,13 +176,12 @@ func TestFallbackChainCancelledContextShortCircuits(t *testing.T) {
 	}
 }
 
-func TestBuildBackendChainSkipsBackendsWithoutCredentials(t *testing.T) {
+func TestBuildBackendChainDefaultOrder(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		BackendOrder: []string{"ollama", "deepseek", "gemini"},
+		BackendOrder: []string{"ollama"},
 		HTTPTimeout:  time.Second,
-		// No DeepSeekAPIKey, no GeminiAPIKey — both should be skipped.
 	}
 	ollama := newOllamaClient("http://example.invalid", "gemma2:2b", time.Second)
 
@@ -191,18 +190,18 @@ func TestBuildBackendChainSkipsBackendsWithoutCredentials(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(chain.backends) != 1 {
-		t.Fatalf("len(chain.backends) = %d, want 1 (only ollama is usable)", len(chain.backends))
+		t.Fatalf("len(chain.backends) = %d, want 1", len(chain.backends))
 	}
 	if chain.backends[0].name != "ollama" {
 		t.Errorf("first backend name = %q, want ollama", chain.backends[0].name)
 	}
 }
 
-func TestBuildBackendChainErrorsWhenAllSkipped(t *testing.T) {
+func TestBuildBackendChainErrorsWhenAllUnknown(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		BackendOrder: []string{"deepseek", "gemini", "garbage"},
+		BackendOrder: []string{"garbage", "alsobad"},
 		HTTPTimeout:  time.Second,
 	}
 	ollama := newOllamaClient("http://example.invalid", "gemma2:2b", time.Second)
@@ -213,30 +212,5 @@ func TestBuildBackendChainErrorsWhenAllSkipped(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no usable backends") {
 		t.Errorf("err = %q, want 'no usable backends' substring", err.Error())
-	}
-}
-
-func TestBuildBackendChainHonoursOrder(t *testing.T) {
-	t.Parallel()
-
-	cfg := &Config{
-		BackendOrder:   []string{"gemini", "deepseek", "ollama"},
-		DeepSeekAPIKey: "sk-test",
-		GeminiAPIKey:   "ai-test",
-		HTTPTimeout:    time.Second,
-	}
-	ollama := newOllamaClient("http://example.invalid", "gemma2:2b", time.Second)
-
-	chain, err := buildBackendChain(cfg, ollama)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	gotNames := make([]string, len(chain.backends))
-	for i, nb := range chain.backends {
-		gotNames[i] = nb.name
-	}
-	wantNames := []string{"gemini", "deepseek", "ollama"}
-	if strings.Join(gotNames, ",") != strings.Join(wantNames, ",") {
-		t.Errorf("chain order = %v, want %v", gotNames, wantNames)
 	}
 }
