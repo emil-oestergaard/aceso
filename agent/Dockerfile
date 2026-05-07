@@ -18,7 +18,7 @@ ENV CGO_ENABLED=0 GOOS=linux
 RUN go build -trimpath -ldflags="-s -w" -o /out/aceso ./
 
 # ---------- final ----------
-FROM alpine:3.20
+FROM alpine:3.23
 
 # ca-certificates so HTTPS calls to managed Prometheus/Loki/Ollama work out of the box.
 # tzdata so RFC3339 timestamps render in UTC consistently.
