@@ -14,8 +14,9 @@ services:
 
     environment:
       # Required: full base URLs for each backend.
-      # OLLAMA_URL in prod typically points at the Raspberry Pi over Tailscale
-      # (e.g. http://100.x.x.x:11434) so the VPS doesn't have to host the LLM.
+      # OLLAMA_URL in prod points at the Raspberry Pi over WireGuard
+      # (e.g. http://10.10.0.2:11434) so the VPS doesn't host the LLM.
+      # See docs/adr/0003-plain-wireguard-over-tailscale.md.
       PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
       LOKI_URL:       ${LOKI_URL:-http://loki:3100}
       OLLAMA_URL:     ${OLLAMA_URL:-http://ollama:11434}
@@ -27,13 +28,15 @@ services:
       INCIDENTS_PATH:        /data/incidents.json
       TZ:                    UTC
 
-      # LLM fallback chain (see agent/backends.go, agent/fallback.go).
-      # The chain is tried in order; backends without credentials are skipped
-      # at startup with a log line, so an Ollama-only deployment still works
-      # by leaving the API key vars empty.
-      BACKEND_ORDER:    ${BACKEND_ORDER:-ollama,deepseek,gemini}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      GEMINI_API_KEY:   ${GEMINI_API_KEY:-}
+      # LLM backend chain (see agent/backends.go, agent/fallback.go).
+      # V0 only supports "ollama"; the binary rejects unknown names at
+      # startup. See docs/adr/0001-local-only-inference.md.
+      BACKEND_ORDER: ${BACKEND_ORDER:-ollama}
+
+      # Human escalation when the backend chain fails. Empty = log line
+      # only; set to an ntfy.sh topic URL to additionally send a push.
+      # See docs/adr/0002-human-escalation-over-cloud-fallback.md.
+      ESCALATE_NTFY_URL: ${ESCALATE_NTFY_URL:-}
 
     volumes:
       - aceso-data:/data

@@ -112,12 +112,14 @@ services:
       INCIDENTS_PATH:        /data/incidents.json
       TZ:                    UTC
 
-      # The dev stack runs Ollama-only by default (no API keys required).
-      # Export DEEPSEEK_API_KEY / GEMINI_API_KEY in your shell or .env to
-      # exercise the fallback path locally without touching production.
-      BACKEND_ORDER:    ${BACKEND_ORDER:-ollama,deepseek,gemini}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      GEMINI_API_KEY:   ${GEMINI_API_KEY:-}
+      # V0 supports a single backend: local Ollama. Cloud LLM clients
+      # do not exist in the binary — see
+      # docs/adr/0001-local-only-inference.md and CLAUDE.md rule 11.
+      BACKEND_ORDER: ${BACKEND_ORDER:-ollama}
+
+      # Optional: ntfy.sh push when the backend chain fails. The
+      # structured [escalate] log line is always emitted.
+      ESCALATE_NTFY_URL: ${ESCALATE_NTFY_URL:-}
     volumes:
       - aceso-data:/data
     networks:
