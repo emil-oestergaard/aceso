@@ -98,7 +98,7 @@ loop" layer that V1's approval UI will eventually formalize.
 | `go build ./...` clean | `shipped` | Verified at scaffold time. |
 | Unit tests | `wired` | 7 of 9 source files have `_test.go` (prometheus, ollama, brain.buildPrompt + brain.diagnoseAlert escalation path, backends, fallback, config, escalate). `loki.go`, `main.go`, and the rest of `brain.go` (`appendIncident`, `Tick`) remain uncovered. |
 | `go test -race -cover ./...` ≥ 80 % | `not started` | Currently 59.6 % package-level (up from 52.2 %). Below the 80 % floor. **The gap is "not yet written," not "hard to test":** `loki.go` is structurally identical to the already-tested `prometheus.go`; `appendIncident` and `Tick` are straightforward with `t.TempDir()` and fakes; only `main.go`'s signal-driven shutdown needs careful goroutine choreography. Backfill is queued behind the local-only architectural change that just landed. |
-| CI pipeline | `wired` | `.github/workflows/build.yml`: `go vet` + `go test -race -cover` on every push/PR; on push to `main`, builds the agent image and publishes to `ghcr.io/emil-oestergaard/aceso` tagged `:latest` and `:sha-<short-sha>`. Provenance + SBOM attestations enabled. The CX23 pulls from GHCR via the production `docker-compose.yml`. |
+| CI pipeline | `wired` | `.github/workflows/build.yml`: `go vet` + `go test -race -cover` on every push/PR; on push to `main`, builds the agent image and publishes to `ghcr.io/emil-oestergaard/aceso` tagged `:latest` and `:sha-<short-sha>`. The CX23 pulls from GHCR via the production `docker-compose.yml`. Architectural rationale + escape-hatch path in [`adr/0004-ghcr-image-publishing.md`](adr/0004-ghcr-image-publishing.md). |
 
 ### Per-file test status
 

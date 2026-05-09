@@ -31,3 +31,4 @@ monotonically and kept in this directory; numbers are never reused.
 | [0001](0001-local-only-inference.md) | Inference is local-only | accepted |
 | [0002](0002-human-escalation-over-cloud-fallback.md) | Human escalation, not cloud fallback, when local inference is unreachable | accepted |
 | [0003](0003-plain-wireguard-over-tailscale.md) | Plain WireGuard for the Pi inference plane (no Tailscale) | accepted |
+| [0004](0004-ghcr-image-publishing.md) | Publish the agent image to GHCR; CX23 pulls instead of builds | accepted |
