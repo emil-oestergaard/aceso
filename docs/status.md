@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-09 (CI workflow + GHCR pull-not-build + incidents-schema.md + roadmap.md + ADRs 0001–0003)
+> Last updated: 2026-05-09 (compose-defaults regression test + lessons-learned + documentation-debt sections)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -110,7 +110,7 @@ loop" layer that V1's approval UI will eventually formalize.
 | `agent/ollama.go` | `wired` | `ollama_test.go`: happy path, markdown-fenced recovery, malformed output, non-2xx, `done=false`, malformed envelope, transport failure, timeout, plus direct `recoverJSON` table. |
 | `agent/brain.go` | `wired` (partial) | `brain_test.go` covers `buildPrompt` (full-field, alphabetical labels, no-logs sentinel, 800→500-char truncation, optional-field omission) and the escalation path of `diagnoseAlert` (escalator called once with the original error, persisted incident has `Escalated:true` and a zero-valued `Diagnosis`). `appendIncident` directly + `Tick` still need tests. |
 | `agent/main.go` | `not started` | Need: signal-driven shutdown exits within the deadline. |
-| `agent/backends.go` | `wired` | `backends_test.go`: `OllamaBackend` round-trip via `httptest.Server` confirming the wrapper is transparent. The cloud-backend tests were removed alongside the cloud backends themselves. |
+| `agent/backends.go` | `wired` | `backends_test.go`: `OllamaBackend` round-trip via `httptest.Server` confirming the wrapper is transparent. The cloud-backend tests were removed alongside the cloud backends themselves. Cross-cutting coverage in `compose_defaults_test.go` asserts the deployment-surface `BACKEND_ORDER` defaults align with what `buildBackendChain` accepts (regression closer for the drift behind commit `e8451a3`). |
 | `agent/fallback.go` | `wired` | `fallback_test.go`: success on first healthy backend, fall-through on failure, all-fail returns wrapped error with every per-backend message, empty chain rejected, pre-cancelled context short-circuits, `buildBackendChain` default order, **rejects cloud backends** (defense-in-depth), errors when only unknown names are supplied. |
 | `agent/escalate.go` | `wired` | `escalate_test.go`: empty-URL log-only path (no HTTP), full POST with body + `Title`/`Priority`/`Tags` headers verified against `httptest.Server`, non-2xx surfaced, transport failure surfaced. |
 
@@ -148,3 +148,18 @@ them, and so V1 planning has a clear backlog to draw from.
 | `docker-compose.yml` on external `monitoring` network | `shipped` | Pulls `${ACESO_IMAGE:-ghcr.io/emil-oestergaard/aceso:latest}` (built by CI). Named volume `aceso-data`, `restart: unless-stopped`, `pull_policy: always`, JSON-file log rotation. To pin a specific build, set `ACESO_IMAGE=ghcr.io/emil-oestergaard/aceso:sha-<short-sha>` in `.env`. |
 | Local dev stack (`docker-compose.dev.yml`) | `shipped` | Prometheus + Loki + Promtail + Ollama + Aceso on a private `aceso-dev-monitoring` bridge. Configs in `config/`. Always-firing test alert (`config/test_alert.yml`) labelled `job=aceso-self-test` so the Loki path is exercised. Verified end-to-end 2026-04-30: `AlwaysFiring` → Aceso poll → Loki query → Ollama diagnosis → NDJSON line in `/data/incidents.json`. See [`dev-stack.md`](dev-stack.md). |
 | Live deploy on a real VPS | `not started` | First production deploy will populate this row. |
+
+## Lessons learned
+
+One-liners about regressions that have shipped and what's preventing
+them next time. Add an entry when a fix lands; do not edit historical
+entries.
+
+- **2026-05-09 — Compose defaults can drift silently from binary acceptance.** Commit `fab6b3c` deleted cloud LLM backends from the binary; the corresponding `BACKEND_ORDER` defaults in `docker-compose.yml` and `docker-compose.dev.yml` were missed. The agent kept booting (chain skipped unknown names rather than failing) but emitted spurious `skipping unknown backend` warnings on every startup, and `DEEPSEEK_API_KEY`/`GEMINI_API_KEY` env passthroughs were dead. The defense-in-depth test in `fallback_test.go` validated the *binary* but not the *deployment surface*. Closed by `agent/compose_defaults_test.go` (commit landing this row).
+
+## Documentation debt
+
+Open items where the docs are correct in substance but need a rewrite
+in the operator's voice or a content pass. Not a backlog of features.
+
+- **ADR-0001 prose is in agent voice, not operator voice.** Reasoning matches the operator's intent (cloud-backend deletion, defense-in-depth via non-existent code paths, escalation over fallback) but the prose was written by Claude. Operator to rewrite over the next few days; the current text is acceptable as a placeholder. See [`adr/0001-local-only-inference.md`](adr/0001-local-only-inference.md).
