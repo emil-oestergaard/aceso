@@ -1,0 +1,86 @@
+# Aceso CI — test on every push/PR, publish image to GHCR on main.
+#
+# The image is the *only* artefact this workflow produces. The CX23
+# pulls it via the prod docker-compose.yml — see the deploy section
+# in README.md. Tags:
+#
+#   ghcr.io/emil-oestergaard/aceso:latest          (rolling)
+#   ghcr.io/emil-oestergaard/aceso:sha-<short-sha> (immutable, pin in .env)
+#
+# Public repo ⇒ GHCR storage is free + unlimited; Actions minutes for
+# public repos are free + unlimited (per GitHub's current pricing).
+
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write   # GHCR push (only used by the build job, on main)
+
+jobs:
+  test:
+    name: go test -race -cover
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+          # No go.sum (stdlib-only project) — disable the cache key
+          # check that setup-go would otherwise default to.
+          cache: false
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test -race -cover
+        run: go test -race -cover -count=1 ./...
+
+  build-and-push:
+    name: build + push (ghcr.io)
+    needs: test
+    runs-on: ubuntu-latest
+    # Only publish on main. PRs run tests but do not push images —
+    # otherwise an opened-fork PR could overwrite :latest.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/aceso
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+
+      - name: build + push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./agent
+          file: ./agent/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # SLSA build provenance + SPDX SBOM. Both are surfaced on the
+          # GHCR package page and let operators verify what they pulled.
+          provenance: mode=max
+          sbom: true

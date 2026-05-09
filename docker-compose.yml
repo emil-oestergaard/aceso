@@ -1,16 +1,22 @@
-# Aceso V0 — observe-and-diagnose service.
+# Aceso V0 — observe-and-diagnose service (production compose).
+#
+# Pulls a pre-built image from GHCR. Build is automated by
+# .github/workflows/build.yml on every push to main. To build from
+# local source instead, use docker-compose.dev.yml.
 #
 # Assumes Prometheus, Loki, and Ollama are already running and reachable on
 # the external "monitoring" network. Hostnames below match common defaults;
 # override via .env or environment if your services live elsewhere.
+#
+# Pinning to a specific build (recommended for production):
+#   ACESO_IMAGE=ghcr.io/emil-oestergaard/aceso:sha-<short-sha>
+# in .env, then `docker compose up -d`. Rolling :latest is fine for soak.
 services:
   aceso:
-    build:
-      context: ./agent
-      dockerfile: Dockerfile
-    image: aceso:latest
+    image: ${ACESO_IMAGE:-ghcr.io/emil-oestergaard/aceso:latest}
     container_name: aceso
     restart: unless-stopped
+    pull_policy: always
 
     environment:
       # Required: full base URLs for each backend.

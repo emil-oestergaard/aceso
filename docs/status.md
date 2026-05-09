@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-09 (incidents-schema.md + roadmap.md + ADRs 0001–0003 + WireGuard reference pass)
+> Last updated: 2026-05-09 (CI workflow + GHCR pull-not-build + incidents-schema.md + roadmap.md + ADRs 0001–0003)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -98,7 +98,7 @@ loop" layer that V1's approval UI will eventually formalize.
 | `go build ./...` clean | `shipped` | Verified at scaffold time. |
 | Unit tests | `wired` | 7 of 9 source files have `_test.go` (prometheus, ollama, brain.buildPrompt + brain.diagnoseAlert escalation path, backends, fallback, config, escalate). `loki.go`, `main.go`, and the rest of `brain.go` (`appendIncident`, `Tick`) remain uncovered. |
 | `go test -race -cover ./...` ≥ 80 % | `not started` | Currently 59.6 % package-level (up from 52.2 %). Below the 80 % floor. **The gap is "not yet written," not "hard to test":** `loki.go` is structurally identical to the already-tested `prometheus.go`; `appendIncident` and `Tick` are straightforward with `t.TempDir()` and fakes; only `main.go`'s signal-driven shutdown needs careful goroutine choreography. Backfill is queued behind the local-only architectural change that just landed. |
-| CI pipeline | `not started` | Repo is local-only; no CI yet. |
+| CI pipeline | `wired` | `.github/workflows/build.yml`: `go vet` + `go test -race -cover` on every push/PR; on push to `main`, builds the agent image and publishes to `ghcr.io/emil-oestergaard/aceso` tagged `:latest` and `:sha-<short-sha>`. Provenance + SBOM attestations enabled. The CX23 pulls from GHCR via the production `docker-compose.yml`. |
 
 ### Per-file test status
 
@@ -145,6 +145,6 @@ them, and so V1 planning has a clear backlog to draw from.
 | Capability | Status | Notes |
 |------------|--------|-------|
 | Multi-stage Dockerfile (`golang:1.26-alpine` → `alpine:3.23`) | `shipped` | `agent/Dockerfile`. Static binary, non-root `aceso` user, `VOLUME /data`. Bumped from 3.20 ahead of its May-2026 EOL. |
-| `docker-compose.yml` on external `monitoring` network | `shipped` | Named volume `aceso-data`, `restart: unless-stopped`, JSON-file log rotation. |
+| `docker-compose.yml` on external `monitoring` network | `shipped` | Pulls `${ACESO_IMAGE:-ghcr.io/emil-oestergaard/aceso:latest}` (built by CI). Named volume `aceso-data`, `restart: unless-stopped`, `pull_policy: always`, JSON-file log rotation. To pin a specific build, set `ACESO_IMAGE=ghcr.io/emil-oestergaard/aceso:sha-<short-sha>` in `.env`. |
 | Local dev stack (`docker-compose.dev.yml`) | `shipped` | Prometheus + Loki + Promtail + Ollama + Aceso on a private `aceso-dev-monitoring` bridge. Configs in `config/`. Always-firing test alert (`config/test_alert.yml`) labelled `job=aceso-self-test` so the Loki path is exercised. Verified end-to-end 2026-04-30: `AlwaysFiring` → Aceso poll → Loki query → Ollama diagnosis → NDJSON line in `/data/incidents.json`. See [`dev-stack.md`](dev-stack.md). |
 | Live deploy on a real VPS | `not started` | First production deploy will populate this row. |

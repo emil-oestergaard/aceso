@@ -142,8 +142,9 @@ See [`README.md`](README.md) for the shortest path. The short version:
 # One-time: create the shared monitoring network
 docker network create monitoring
 
-# Build and start Aceso
-docker compose up --build -d
+# Pull the latest image from GHCR and start Aceso
+docker compose pull
+docker compose up -d
 
 # Tail diagnoses
 docker compose logs -f aceso

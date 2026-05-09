@@ -74,33 +74,58 @@ as the stack grows.
 | `POLL_INTERVAL_SECONDS` | no       | `30`                       | Cadence of the observe loop.                                                     |
 | `HTTP_TIMEOUT_SECONDS`  | no       | `120`                      | Per-call timeout (Ollama can be slow on first generation).                       |
 
-## Running locally with Docker
+## Running with Docker (production)
 
-Aceso expects Prometheus, Loki, and Ollama to already be reachable on a
-shared external Docker network named `monitoring`.
+The production `docker-compose.yml` pulls a pre-built image from GHCR
+(`ghcr.io/emil-oestergaard/aceso`). The image is rebuilt by GitHub
+Actions on every push to `main` — see `.github/workflows/build.yml`.
+Aceso expects Prometheus, Loki, and Ollama to already be reachable on
+a shared external Docker network named `monitoring`.
 
 ```sh
 # One-time: create the shared network
 docker network create monitoring
 
-# Build and start Aceso
-docker compose up --build -d
+# Pull and start
+docker compose pull
+docker compose up -d
 
 # Tail diagnoses
 docker compose logs -f aceso
 
 # Inspect persisted incidents
 docker compose exec aceso cat /data/incidents.json
+
+# Update to the latest build
+docker compose pull && docker compose up -d
 ```
 
-If your monitoring services live elsewhere, override the URLs:
+For production, pin to a specific image SHA so an upstream rebuild
+can't change what's running. Set in `.env`:
 
 ```sh
-PROMETHEUS_URL=http://prom.lan:9090 \
-LOKI_URL=http://loki.lan:3100 \
-OLLAMA_URL=http://ollama.lan:11434 \
-docker compose up --build -d
+ACESO_IMAGE=ghcr.io/emil-oestergaard/aceso:sha-abc1234
 ```
+
+Rollback is then `docker compose up -d` after editing `.env` back to
+the previous SHA.
+
+If your monitoring services live elsewhere, override the URLs in
+`.env` (`PROMETHEUS_URL`, `LOKI_URL`, `OLLAMA_URL`).
+
+## Running with Docker (local development)
+
+Use `docker-compose.dev.yml` to bring up a self-contained stack
+(Prometheus + Loki + Promtail + Ollama + Aceso) on a private bridge
+network. This compose **builds the image from local source**, so
+edits to `agent/` are picked up by `--build`:
+
+```sh
+docker compose -f docker-compose.dev.yml up --build -d
+docker compose -f docker-compose.dev.yml logs -f aceso
+```
+
+See [`docs/dev-stack.md`](docs/dev-stack.md) for the full dev flow.
 
 ## Running without Docker
 
