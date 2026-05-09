@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-09 (ADRs 0001–0003 + README/.env.example WireGuard pass)
+> Last updated: 2026-05-09 (roadmap.md + ADRs 0001–0003 + WireGuard reference pass)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code

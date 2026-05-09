@@ -21,6 +21,7 @@ no existing doc fits, add a new file here and link it from this index.
 | [`dev-stack.md`](dev-stack.md) | How to bring up the local Prometheus + Loki + Promtail + Ollama + Aceso stack via `docker-compose.dev.yml` and run the first end-to-end smoke test. | active |
 | [`pi-deploy.md`](pi-deploy.md) | Operator runbook for the Pi inference plane: WireGuard tunnel, pinned-Ollama install, benchmark gate, soak, key rotation, no-rollback semantics. Pairs with `scripts/pi-setup.sh` and `scripts/cx23-setup.sh`. | active |
 | [`adr/`](adr/README.md) | Architecture Decision Records — one-time write-ups for decisions that rule out a category of future implementation. See [`adr/README.md`](adr/README.md) for when to write one. | active |
+| [`roadmap.md`](roadmap.md) | Milestone planning beyond V0 — V1 (HITL action proposals) and V2 (bounded autonomous remediation). Captures shipping definitions, non-features, and open ADRs per milestone. | active |
 
 ## Planned docs
 
@@ -30,7 +31,6 @@ not preemptively.
 
 | File | Trigger to create |
 |------|-------------------|
-| `roadmap.md` | First milestone planning beyond V0 (V1 approval UI, V2 remediation runbooks). |
 | `incidents-schema.md` | First non-additive change to the `/data/incidents.json` line format, or first external consumer. |
 | `error-handling.md` | First time partial-failure semantics need to be reasoned about across multiple call sites. |
 | `dependencies.md` | First external Go dependency (must include rationale, license, last release, maintenance signal). |

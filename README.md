@@ -170,3 +170,6 @@ rationale lives in [`docs/adr/`](docs/adr/README.md).
 - **V0 (this)** — Observe and diagnose. Read-only.
 - **V1** — Action proposals with human-in-the-loop approval.
 - **V2** — Bounded autonomous remediation for whitelisted runbooks.
+
+Shipping definitions, non-features, and open ADRs per milestone live
+in [`docs/roadmap.md`](docs/roadmap.md).
