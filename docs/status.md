@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-07 (Pi inference plane scripts + deploy runbook landed)
+> Last updated: 2026-05-09 (ADRs 0001–0003 + README/.env.example WireGuard pass)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
