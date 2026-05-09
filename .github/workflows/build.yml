@@ -80,7 +80,14 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # SLSA build provenance + SPDX SBOM. Both are surfaced on the
-          # GHCR package page and let operators verify what they pulled.
-          provenance: mode=max
-          sbom: true
+          # TODO(post-first-green-build): re-add SLSA provenance and
+          # SPDX SBOM attestations.
+          #   provenance: mode=max
+          #   sbom: true
+          # Both require `id-token: write` in this workflow's
+          # permissions block; some setups also need the GHCR package
+          # to exist before attestations can be uploaded. Defer until
+          # we've confirmed the basic pipeline (test → build → push)
+          # is green on a real run, then re-enable in a follow-up
+          # commit and verify on the next push to main. See
+          # docs/adr/0004-ghcr-image-publishing.md "Implementation".
