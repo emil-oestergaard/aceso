@@ -32,7 +32,7 @@ func newBrain(cfg *Config, p *PrometheusClient, l *LokiClient, b Backend, e Esca
 // Incident is the durable record persisted to incidents.json.
 // Each Tick that produces a diagnosis OR escalates appends one of these.
 //
-// Schema notes (see CLAUDE.md rule 10):
+// Schema notes (see CLAUDE.md rule 11):
 //   - `diagnosis` is always present. For escalated incidents it is
 //     zero-valued ({"cause":"","suggested_action":""}); consumers should
 //     branch on `escalated` rather than empty-string-checking the

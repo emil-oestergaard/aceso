@@ -50,7 +50,7 @@ Concretely:
 - A regression test (`TestBuildBackendChainRejectsCloudBackends`)
   pins this behaviour so a future PR cannot quietly add a
   cloud-shaped backend.
-- `CLAUDE.md` rule 11 codifies the rule for AI agents working in
+- `CLAUDE.md` rule 12 codifies the rule for AI agents working in
   the repo: "Inference is local-only. No exceptions."
 
 When every backend in the chain fails, the agent escalates to a human
@@ -95,5 +95,5 @@ silently route around the outage.
 - `agent/backends.go` — single backend, hostile name resolver
 - `agent/backends_test.go::TestBuildBackendChainRejectsCloudBackends`
 - `agent/escalate.go` — human-escalation path on chain failure
-- `CLAUDE.md` rule 11 — agent-facing version of this decision
+- `CLAUDE.md` rule 12 — agent-facing version of this decision
 - Commit `fab6b3c` (refactor: remove cloud LLM backends from binary)

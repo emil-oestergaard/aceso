@@ -88,32 +88,49 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
    recording, and the polling loop's bounded-deadline semantics are all
    load-bearing. Trivial getters are not. When in doubt, test it.
 
-7. **Stdlib first.** External dependencies require a written
+7. **Don't volunteer scope.** When a follow-on task seems valuable
+   while you're working on something the operator asked for, name
+   it as a candidate for the operator's backlog rather than
+   offering to do it now. "Want me to also write X?" prompts
+   silently expand the scope of a session past what the operator
+   actually prioritized; one or two such offers are fine, a chain
+   of them is the failure mode this rule exists to prevent. Land
+   the requested work and stop. Surface candidates as backlog
+   items in `docs/status.md` (under the "Documentation debt" or
+   "V0 out-of-scope" sections, depending on shape) or as questions
+   for the operator, but do not offer to execute them in the
+   current session unless the operator names them as in-scope.
+   Architectural shifts (e.g. switching deployment topology,
+   adding a third-party trust surface) are *never* candidates for
+   "while we're here" — those are explicit ADR-level decisions
+   that belong in their own session.
+
+8. **Stdlib first.** External dependencies require a written
    justification in `docs/dependencies.md` (rationale, license, last
    release, maintenance signal). The stdlib-only baseline is a feature,
    not an accident — it keeps the binary small, the audit surface tiny,
    and the supply chain trivial to reason about.
 
-8. **Graceful degradation is non-negotiable.** Loki down ≠ skip the
+9. **Graceful degradation is non-negotiable.** Loki down ≠ skip the
    alert. Ollama timeout ≠ crash. Every external call has explicit
    error handling, and every partial failure is recorded on the
    incident with an `error` field so the history shows *what* the agent
    could and couldn't see at decision time. See
    [`docs/error-handling.md`](docs/error-handling.md).
 
-9. **V0 is read-only.** The agent must not execute writes against the
-   host or any monitored service. HTTP `GET` only against Prometheus
-   and Loki; `POST` only to Ollama. Any change that introduces a write
-   path is an architectural change and ships behind explicit
-   human-in-the-loop approval. See [`docs/roadmap.md`](docs/roadmap.md).
+10. **V0 is read-only.** The agent must not execute writes against the
+    host or any monitored service. HTTP `GET` only against Prometheus
+    and Loki; `POST` only to Ollama. Any change that introduces a write
+    path is an architectural change and ships behind explicit
+    human-in-the-loop approval. See [`docs/roadmap.md`](docs/roadmap.md).
 
-10. **The incident schema is a contract.** `/data/incidents.json` will
+11. **The incident schema is a contract.** `/data/incidents.json` will
     be consumed by future tooling (dashboards, the V1 approval UI,
     post-incident review). Schema changes are versioned and documented
     in [`docs/incidents-schema.md`](docs/incidents-schema.md). Breaking
     changes ship a migration note in the same commit.
 
-11. **Inference is local-only. No exceptions.** The only LLM backend
+12. **Inference is local-only. No exceptions.** The only LLM backend
     Aceso talks to is a local Ollama instance — typically a Raspberry
     Pi reachable over a plain WireGuard tunnel in production, or a
     local container in dev. Third-party LLM APIs (DeepSeek, Gemini,
@@ -133,20 +150,6 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
     and [`docs/adr/0002-human-escalation-over-cloud-fallback.md`](docs/adr/0002-human-escalation-over-cloud-fallback.md);
     the network plane lives in
     [`docs/adr/0003-plain-wireguard-over-tailscale.md`](docs/adr/0003-plain-wireguard-over-tailscale.md).
-
-12. **Don't volunteer scope.** When a follow-on task seems valuable
-    while you're working on something the operator asked for, name
-    it as a candidate for the operator's backlog rather than
-    offering to do it now. "Want me to also write X?" prompts
-    silently expand the scope of a session past what the operator
-    actually prioritized; one or two such offers are fine, a chain
-    of them is the failure mode this rule exists to prevent. Land
-    the requested work, surface the candidate at the end with one
-    line ("noticed X looks worth doing"), and let the operator pick
-    it up — or not — on their own cadence. Architectural shifts
-    (e.g. switching deployment topology, adding a third-party trust
-    surface) are *never* candidates for "while we're here" — those
-    are explicit ADR-level decisions.
 
 ## Running
 

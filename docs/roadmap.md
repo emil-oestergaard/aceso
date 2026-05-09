@@ -226,7 +226,7 @@ maintain.
 
 ### Local-only invariant
 
-[ADR-0001](adr/0001-local-only-inference.md) and CLAUDE.md rule 11
+[ADR-0001](adr/0001-local-only-inference.md) and CLAUDE.md rule 12
 hold across all milestones. V1 actions and V2 runbooks may target
 operator-owned infrastructure but never call out to third-party
 LLMs. If a future milestone needs cloud LLM access, it does so by

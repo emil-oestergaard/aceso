@@ -157,7 +157,7 @@ oversight.
 If the Pi misbehaves after the flip:
 
 - **The agent escalates every failed-diagnose alert** until the Pi is
-  fixed. Per CLAUDE.md rule 11, there is no localhost-fallback model on
+  fixed. Per CLAUDE.md rule 12, there is no localhost-fallback model on
   the CX23 — silently falling back to a different model would re-create
   the same trust problem the cloud-backend removal was meant to fix.
 - The escalation channel (structured `[escalate]` log line + optional
@@ -281,5 +281,5 @@ operator configs. Only `scripts/templates/*.example` is committed.
   the V0 escalation contract this deploy depends on.
 - [`dev-stack.md`](dev-stack.md) — local Prometheus/Loki/Promtail/Ollama
   stack used for the Phase 5 soak test.
-- [`../CLAUDE.md`](../CLAUDE.md) rule 11 — the local-only constraint
+- [`../CLAUDE.md`](../CLAUDE.md) rule 12 — the local-only constraint
   that motivates the no-rollback design.

@@ -30,7 +30,7 @@ import (
 // from the binary without updating compose — this test fails
 // immediately.
 //
-// Stdlib-only on purpose (CLAUDE.md rule 7): the regex captures the
+// Stdlib-only on purpose (CLAUDE.md rule 8): the regex captures the
 // `${BACKEND_ORDER:-<default>}` shape directly from the YAML bytes
 // rather than pulling in a YAML parser.
 func TestComposeBackendOrderDefaultsAreUsable(t *testing.T) {

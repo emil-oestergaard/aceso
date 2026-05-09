@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-09 (compose-defaults regression test + lessons-learned + documentation-debt sections)
+> Last updated: 2026-05-09 (CLAUDE.md rule reorder: 7-11 shift to 8-12; new rule 7 "Don't volunteer scope")
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -35,8 +35,8 @@
 | `{cause, suggested_action}` parsing | `wired` | Includes a prose-fence recovery (`recoverJSON`) for chatty small models. |
 | Default model `gemma2:2b` | `wired` | Configurable via `OLLAMA_MODEL`. No A/B between models yet. |
 | Prompt stability (sorted labels, deterministic ordering) | `wired` | `agent/brain.go:buildPrompt`. |
-| Local-only `Backend` chain (`Backend` interface + `FallbackChain`) | `wired` | `agent/backends.go`, `agent/fallback.go`. V0 only registers `OllamaBackend`; the `buildBackendChain` switch rejects all unknown names (including `deepseek`/`gemini`/`openai`) so a misconfigured `BACKEND_ORDER` cannot resurrect cloud paths — they are not in the binary. See CLAUDE.md rule 11. |
-| Ollama-on-WireGuard (Pi as primary backend) | `wired` | Tailscale was rejected for V0 (third-party trust path conflicts with rule 11). Plain WireGuard + pinned Ollama install scripts are committed under `scripts/`; see [`pi-deploy.md`](pi-deploy.md). The agent uses the existing `OllamaBackend` with `OLLAMA_URL` pointed at the Pi's tunnel IP — no new backend type. Awaiting first-deploy + 1-week soak before flipping to `shipped`. |
+| Local-only `Backend` chain (`Backend` interface + `FallbackChain`) | `wired` | `agent/backends.go`, `agent/fallback.go`. V0 only registers `OllamaBackend`; the `buildBackendChain` switch rejects all unknown names (including `deepseek`/`gemini`/`openai`) so a misconfigured `BACKEND_ORDER` cannot resurrect cloud paths — they are not in the binary. See CLAUDE.md rule 12. |
+| Ollama-on-WireGuard (Pi as primary backend) | `wired` | Tailscale was rejected for V0 (third-party trust path conflicts with rule 12). Plain WireGuard + pinned Ollama install scripts are committed under `scripts/`; see [`pi-deploy.md`](pi-deploy.md). The agent uses the existing `OllamaBackend` with `OLLAMA_URL` pointed at the Pi's tunnel IP — no new backend type. Awaiting first-deploy + 1-week soak before flipping to `shipped`. |
 
 ## Escalation
 
