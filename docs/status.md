@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-09 (roadmap.md + ADRs 0001–0003 + WireGuard reference pass)
+> Last updated: 2026-05-09 (incidents-schema.md + roadmap.md + ADRs 0001–0003 + WireGuard reference pass)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -79,7 +79,7 @@ loop" layer that V1's approval UI will eventually formalize.
 | NDJSON append to `/data/incidents.json` | `wired` | `agent/brain.go:appendIncident`. Creates parent dir on first write. |
 | Partial-failure recording (`error` field on incident) | `wired` | Loki failure still produces an incident with the LLM's metadata-only diagnosis. |
 | Escalation field (`escalated: true`) | `wired` | Additive change to the incident schema. Success-path lines remain byte-identical (`omitempty`); escalated lines branch on this flag rather than empty-string-checking the diagnosis. |
-| Schema versioning | `not started` | When V1 lands a consumer, formalize in `docs/incidents-schema.md`. The `escalated` field's introduction is the first non-trivial schema evolution worth tracking there. |
+| Schema versioning | `planned` | Schema-v0 (current) and schema-v1 (the V1-milestone cutover, including the `error` → `backend_errors` migration and `incident_id`/`schema_version` fields) are now both documented in [`incidents-schema.md`](incidents-schema.md). Implementation of v1 lands with the V1 milestone — no code changes today. |
 | `incident.error` as unstructured string | `wired` (with deferred-decision annotation) | Today the field is a single concatenated string ("loki: …; backend: fallback: all 1 backend(s) failed: ollama: connection refused"). It preserves enough signal to grep "Pi was down" vs. "Pi returned garbage" vs. "Pi timed out", but it is **not** structured. **Do not add more unstructured failure metadata to incidents.** When V1's review UI needs to render per-backend error history, migrate this field to a structured `backend_errors: [{name, error, at}]` array as the first formal schema-version bump. |
 
 ## Remediation
