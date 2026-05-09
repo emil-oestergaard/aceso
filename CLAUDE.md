@@ -134,6 +134,20 @@ Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
     the network plane lives in
     [`docs/adr/0003-plain-wireguard-over-tailscale.md`](docs/adr/0003-plain-wireguard-over-tailscale.md).
 
+12. **Don't volunteer scope.** When a follow-on task seems valuable
+    while you're working on something the operator asked for, name
+    it as a candidate for the operator's backlog rather than
+    offering to do it now. "Want me to also write X?" prompts
+    silently expand the scope of a session past what the operator
+    actually prioritized; one or two such offers are fine, a chain
+    of them is the failure mode this rule exists to prevent. Land
+    the requested work, surface the candidate at the end with one
+    line ("noticed X looks worth doing"), and let the operator pick
+    it up — or not — on their own cadence. Architectural shifts
+    (e.g. switching deployment topology, adding a third-party trust
+    surface) are *never* candidates for "while we're here" — those
+    are explicit ADR-level decisions.
+
 ## Running
 
 See [`README.md`](README.md) for the shortest path. The short version:
