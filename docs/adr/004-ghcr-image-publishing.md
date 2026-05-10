@@ -1,11 +1,11 @@
-# ADR-0004: Publish the agent image to GHCR; CX23 pulls instead of builds
+# ADR-004: Publish the agent image to GHCR; CX23 pulls instead of builds
 
 - **Status:** accepted
 - **Date:** 2026-05-09
 - **Deciders:** Emil Østergaard
 - **Supersedes:** —
 - **Superseded by:** —
-- **Related:** [ADR-0001](0001-local-only-inference.md)
+- **Related:** [ADR-001](001-local-only-inference.md)
 
 ## The escape hatch comes first
 
@@ -31,7 +31,7 @@ disappears, if GHCR is down, if the operator decides they no longer
 trust the GitHub build environment. The fact that the local-build
 path remains *first-class* — same Dockerfile, same compose graph,
 no special flags — is what keeps this decision consistent with
-[ADR-0001](0001-local-only-inference.md)'s sovereignty stance. GHCR
+[ADR-001](001-local-only-inference.md)'s sovereignty stance. GHCR
 is the *default convenience*, not the *only path*.
 
 This ADR exists because that distinction is load-bearing and not
@@ -39,7 +39,7 @@ self-evident from reading the workflow file.
 
 ## Context
 
-[ADR-0001](0001-local-only-inference.md) commits Aceso to local-only
+[ADR-001](001-local-only-inference.md) commits Aceso to local-only
 inference: production data (logs, prompts, diagnoses) does not leave
 operator infrastructure. The corollary the operator inherited was
 "build the agent binary on the CX23 too" — `docker-compose.yml` used
@@ -99,9 +99,9 @@ push to `main`:
   build-from-source path is preserved as a first-class flow for
   development and as the sovereign escape hatch.
 
-## Trust delta vs ADR-0001
+## Trust delta vs ADR-001
 
-| Surface | Pre-ADR-0004 | Post-ADR-0004 |
+| Surface | Pre-ADR-004 | Post-ADR-004 |
 |---------|--------------|---------------|
 | Production data (logs, prompts, diagnoses) | Stays on operator infra | **Unchanged** — stays on operator infra. The image runs on the operator's CX23, talks to the operator's Pi, persists to the operator's volume. |
 | Source code | Public on GitHub | Unchanged |

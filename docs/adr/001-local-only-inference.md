@@ -1,10 +1,7 @@
-# ADR-0001: Inference is local-only
+# ADR-001: Inference is local-only
 
 - **Status:** accepted
 - **Date:** 2026-05-07
-- **Deciders:** Emil Østergaard
-- **Supersedes:** —
-- **Superseded by:** —
 
 ## Context
 
@@ -31,7 +28,7 @@ than skip the alert. Two problems with that:
    model is unreachable, the right thing for a self-healing agent to
    do is alert the human and wait — not invent a diagnosis using a
    different vendor's model with different reliability characteristics
-   and different prompt-handling behaviour. See ADR-0002.
+   and different prompt-handling behaviour. See ADR-002.
 
 ## Decision
 
@@ -54,7 +51,7 @@ Concretely:
   the repo: "Inference is local-only. No exceptions."
 
 When every backend in the chain fails, the agent escalates to a human
-via a structured log line and an optional ntfy.sh push (see ADR-0002),
+via a structured log line and an optional ntfy.sh push (see ADR-002),
 and persists the incident with `escalated: true`. It does **not**
 silently route around the outage.
 
@@ -78,7 +75,7 @@ silently route around the outage.
   an Ollama outage. This is acceptable: in an operability tool, "I
   don't know, look at this" is a correct answer; "I confidently
   hallucinated a remediation" is not.
-- The Pi inference plane (see ADR-0003) becomes a hard dependency for
+- The Pi inference plane (see ADR-003) becomes a hard dependency for
   the V0 production deployment. This is mitigated by the Pi being
   cheap, well-understood, and runnable on hardware the operator
   already owns.
@@ -88,7 +85,7 @@ silently route around the outage.
 - A future ADR could revisit this if Aceso ever needs to operate in
   contexts where the operator does not own a viable LLM-runtime host.
   Until then, "add a cloud backend for reliability" should be rejected
-  in favour of extending the escalation layer (ADR-0002).
+  in favour of extending the escalation layer (ADR-002).
 
 ## Implementation
 

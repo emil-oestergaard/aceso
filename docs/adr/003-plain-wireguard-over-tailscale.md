@@ -1,15 +1,15 @@
-# ADR-0003: Plain WireGuard for the Pi inference plane (no Tailscale)
+# ADR-003: Plain WireGuard for the Pi inference plane (no Tailscale)
 
 - **Status:** accepted
 - **Date:** 2026-05-07
 - **Deciders:** Emil Østergaard
 - **Supersedes:** —
 - **Superseded by:** —
-- **Related:** [ADR-0001](0001-local-only-inference.md), [ADR-0002](0002-human-escalation-over-cloud-fallback.md)
+- **Related:** [ADR-001](001-local-only-inference.md), [ADR-002](002-human-escalation-over-cloud-fallback.md)
 
 ## Context
 
-ADR-0001 commits Aceso to local-only inference. In V0 production that
+ADR-001 commits Aceso to local-only inference. In V0 production that
 means an Ollama instance on a 16 GB Raspberry Pi, reached from a
 Hetzner CX23 over an encrypted tunnel. Two reasonable tunnels were on
 the table:
@@ -55,7 +55,7 @@ Tailscale would have made the happy path easier. It loses on three
 axes that matter for this deployment:
 
 1. **Trust boundary.** Tailscale's coordination server holds the
-   metadata about who can reach whom. ADR-0001 was about not handing
+   metadata about who can reach whom. ADR-001 was about not handing
    production-log-adjacent traffic to a third party; routing the
    transport for that traffic through a third party's coordinator
    undoes part of that decision. Self-hosting Headscale is possible

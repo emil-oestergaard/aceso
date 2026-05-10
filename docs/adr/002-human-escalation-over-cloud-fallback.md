@@ -1,15 +1,11 @@
-# ADR-0002: Human escalation, not cloud fallback, when local inference is unreachable
+# ADR-002: Human escalation, not cloud fallback, when local inference is unreachable
 
 - **Status:** accepted
 - **Date:** 2026-05-07
-- **Deciders:** Emil Østergaard
-- **Supersedes:** —
-- **Superseded by:** —
-- **Related:** [ADR-0001](0001-local-only-inference.md)
 
 ## Context
 
-ADR-0001 removes cloud LLM backends from the binary. That decision
+ADR-001 removes cloud LLM backends from the binary. That decision
 forces a follow-up question: when the local inference path is
 unreachable (Pi off, WireGuard tunnel down, model OOM, Ollama
 crashed), what should the agent do with the alerts it can't diagnose?
@@ -20,7 +16,7 @@ The wrong answers, in increasing order of harm:
    never finds out.
 2. **Invent a diagnosis from a built-in heuristic.** Looks fine in
    demos, fails the first time it's load-bearing.
-3. **Fall back to a cloud LLM.** Defeats ADR-0001.
+3. **Fall back to a cloud LLM.** Defeats ADR-001.
 
 Aceso is observability infrastructure. The cost of "I don't know"
 delivered loudly is much lower than the cost of "I think I know"
@@ -64,7 +60,7 @@ paging incident. The structured log line is the source of truth.
 ### Positive
 
 - Operator gets a push, instantly, when the inference path breaks.
-  The "wait for the human" semantics from ADR-0001 are real, not
+  The "wait for the human" semantics from ADR-001 are real, not
   aspirational.
 - The on-disk incident log captures *what the agent could not see at
   decision time*, which is exactly the information needed for a
@@ -100,7 +96,7 @@ paging incident. The structured log line is the source of truth.
 
 | Option | Rejected because |
 |--------|------------------|
-| Cloud LLM fallback | Defeats ADR-0001. |
+| Cloud LLM fallback | Defeats ADR-001. |
 | Built-in heuristic / template diagnosis | Confidently-wrong is worse than "I don't know." |
 | Retry-with-backoff and silently drop after N | Hides the underlying outage from the operator. |
 | Email | Higher latency, more moving parts (SMTP, deliverability), and the operator already has a phone-shaped notification surface via ntfy. |
