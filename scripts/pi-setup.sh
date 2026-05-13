@@ -68,9 +68,15 @@ need curl
 # ----------------------------------------------------------------------------
 
 OLLAMA_BIN=/usr/local/bin/ollama
-OLLAMA_URL="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-arm64"
-OLLAMA_TMP="$(mktemp)"
-trap 'rm -f "$OLLAMA_TMP"' EXIT
+OLLAMA_LIB_DIR=/usr/local/lib/ollama
+# Modern Ollama (>= v0.6) ships a zstd-compressed tarball containing
+# bin/ollama plus lib/ollama/. Earlier versions shipped a single binary
+# at the bare URL with no extension — pin to a recent version or this
+# download URL will 404.
+OLLAMA_URL="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-arm64.tar.zst"
+OLLAMA_TMP="$(mktemp --suffix=.tar.zst)"
+OLLAMA_EXTRACT_DIR=""  # populated in Phase 3 once zstd is installed
+trap 'rm -f "$OLLAMA_TMP"; [[ -n "${OLLAMA_EXTRACT_DIR:-}" ]] && rm -rf "$OLLAMA_EXTRACT_DIR"' EXIT
 
 # Skip the download if the installed version already matches — the
 # binary on disk is implicitly trusted from a previous successful run.
@@ -79,10 +85,10 @@ if [[ -x "$OLLAMA_BIN" ]]; then
     INSTALLED_VERSION="$("$OLLAMA_BIN" --version 2>/dev/null | awk '{print $NF}' || true)"
 fi
 if [[ "$INSTALLED_VERSION" == "$OLLAMA_VERSION" ]]; then
-    log "Phase 0b: ollama v${OLLAMA_VERSION} already installed (skipping pre-verify download)"
+    log "Phase 0b: ollama v${OLLAMA_VERSION} already installed (skipping tarball download)"
     OLLAMA_PREVERIFIED=1
 else
-    log "Phase 0b: downloading + verifying ollama v${OLLAMA_VERSION} (pre-flight, no system changes yet)"
+    log "Phase 0b: downloading + verifying ollama v${OLLAMA_VERSION} tarball (pre-flight, no system changes yet)"
     log "  $OLLAMA_URL"
     curl -fsSL --retry 3 -o "$OLLAMA_TMP" "$OLLAMA_URL"
     ACTUAL_SHA="$(sha256sum "$OLLAMA_TMP" | awk '{print $1}')"
@@ -102,7 +108,7 @@ log "Phase 1: base hardening"
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get -y -qq full-upgrade
 DEBIAN_FRONTEND=noninteractive apt-get -y -qq install \
-    ufw unattended-upgrades wireguard wireguard-tools curl jq
+    ufw unattended-upgrades wireguard wireguard-tools curl jq zstd tar
 
 # Unattended security upgrades. Auto-reboot in a quiet window so kernel
 # updates don't wedge the model. Unattended-upgrades only applies the
@@ -175,7 +181,7 @@ PI_PRIVKEY="$(cat "$WG_PRIVKEY_FILE")"
 WG_TMP="$(mktemp)"
 # Replace the Phase 0b trap so BOTH temp files are removed on exit.
 # Bash traps overwrite — consolidate explicitly.
-trap 'rm -f "$OLLAMA_TMP" "$WG_TMP"' EXIT
+trap 'rm -f "$OLLAMA_TMP" "$WG_TMP"; [[ -n "${OLLAMA_EXTRACT_DIR:-}" ]] && rm -rf "$OLLAMA_EXTRACT_DIR"' EXIT
 # Substitute placeholders. Using `|` as the sed delimiter because the
 # values contain `/` (CIDRs) and `:` (endpoints).
 sed \
@@ -207,10 +213,22 @@ log "  tunnel up: $(wg show wg0 latest-handshakes | head -n1)"
 
 log "Phase 3: Ollama install (pinned v${OLLAMA_VERSION})"
 
-# Install the pre-verified binary from Phase 0b. If we skipped the
-# download (already installed at the right version), this is a no-op.
+# Install from the pre-verified tarball downloaded in Phase 0b.
+# Modern Ollama (>= v0.6) ships bin/ollama plus lib/ollama/ (runner
+# binaries + shared libs). If we skipped the download (already
+# installed at the right version), this is a no-op.
 if [[ "${OLLAMA_PREVERIFIED:-0}" -eq 0 ]]; then
-    install -m 0755 -o root -g root "$OLLAMA_TMP" "$OLLAMA_BIN"
+    OLLAMA_EXTRACT_DIR="$(mktemp -d)"
+    zstd -d --stdout "$OLLAMA_TMP" | tar -x -C "$OLLAMA_EXTRACT_DIR"
+    [[ -x "$OLLAMA_EXTRACT_DIR/bin/ollama" ]] || \
+        die "extracted tarball is missing bin/ollama — Ollama asset layout may have changed (downloaded: $OLLAMA_URL)"
+    install -m 0755 -o root -g root "$OLLAMA_EXTRACT_DIR/bin/ollama" "$OLLAMA_BIN"
+    if [[ -d "$OLLAMA_EXTRACT_DIR/lib/ollama" ]]; then
+        install -d -o root -g root -m 0755 "$OLLAMA_LIB_DIR"
+        cp -a "$OLLAMA_EXTRACT_DIR/lib/ollama/." "$OLLAMA_LIB_DIR/"
+        chown -R root:root "$OLLAMA_LIB_DIR"
+        log "  installed bundled libs → $OLLAMA_LIB_DIR"
+    fi
 fi
 
 install -m 0644 -o root -g root "$TEMPLATES_DIR/ollama.service" /etc/systemd/system/ollama.service
