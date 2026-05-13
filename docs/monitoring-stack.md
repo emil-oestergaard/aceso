@@ -73,13 +73,26 @@ in `Up` state.
 
 ## Verify the stack works (before adding Aceso)
 
-These three checks confirm Prometheus and Loki are actually doing their
-job. Run them from the CX23 host.
+These three checks confirm Prometheus and Loki are actually producing
+data Aceso will be able to read. Run from the CX23 host.
+
+Note: `grafana/loki`, `grafana/promtail`, and `prom/node-exporter` are
+distroless images with no shell or `wget`/`curl`. The `prom/prometheus`
+image bundles `wget` but its stripped-down resolver doesn't always
+honour Docker's embedded DNS (it can return `bad address` for service
+names that resolve fine elsewhere). The portable pattern is to spin up
+a throwaway `busybox` on the same network and probe from there. Works
+regardless of which tools each service image happens to bundle.
+
+Give Loki ~30-45 s after `docker compose up -d` before running the
+Loki probes — the ingester takes that long to register, and you'll see
+`Ingester not ready` from `/ready` until it has.
 
 ### 1. Prometheus is up and the synthetic alert is firing
 
 ```sh
-sudo docker exec prometheus wget -qO- http://localhost:9090/api/v1/alerts \
+sudo docker run --rm --network monitoring busybox \
+  wget -qO- http://prometheus:9090/api/v1/alerts \
   | python3 -m json.tool
 ```
 
@@ -91,8 +104,8 @@ Prometheus didn't load the rule file — check
 ### 2. node-exporter metrics are being scraped
 
 ```sh
-sudo docker exec prometheus wget -qO- \
-  'http://localhost:9090/api/v1/query?query=up{job="node-exporter"}' \
+sudo docker run --rm --network monitoring busybox \
+  wget -qO- 'http://prometheus:9090/api/v1/query?query=up{job="node-exporter"}' \
   | python3 -m json.tool
 ```
 
@@ -101,19 +114,25 @@ Expected: a `data.result[0].value` array where the second element is
 last tick. If it's `"0"` or `data.result` is empty, check
 `sudo docker compose logs node-exporter`.
 
-### 3. Loki has logs in it
+### 3. Loki is ready and Promtail is shipping
 
-Promtail will start pushing logs within ~10 s of bring-up. Confirm:
+Two-part check:
 
 ```sh
-sudo docker exec loki wget -qO- \
-  'http://localhost:3100/loki/api/v1/label/container/values' \
+# Loki is past its startup grace period
+sudo docker run --rm --network monitoring busybox \
+  wget -qO- http://loki:3100/ready
+
+# Promtail is shipping logs and Loki has indexed them
+sudo docker run --rm --network monitoring busybox \
+  wget -qO- 'http://loki:3100/loki/api/v1/label/container/values' \
   | python3 -m json.tool
 ```
 
-Expected: a JSON object with `data` listing several container names
-(`prometheus`, `loki`, `promtail`, `node-exporter`). If `data` is empty,
-Promtail isn't shipping — likely a permission issue on
+Expected: `/ready` returns the literal string `ready`. The labels
+endpoint returns a JSON object with `data` listing several container
+names (`prometheus`, `loki`, `promtail`, `node-exporter`). If `data` is
+empty, Promtail isn't shipping — likely a permission issue on
 `/var/run/docker.sock`; check `sudo docker compose logs promtail`.
 
 All three green = monitoring stack is producing real data. Now proceed
