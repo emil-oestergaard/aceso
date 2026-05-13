@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-13 (CX23 monitoring stack `shipped` — verified end-to-end on real CX23)
+> Last updated: 2026-05-13 (V0 live end-to-end on CX23 + Pi — five clean ticks, qwen2.5:7b diagnoses landing in `/data/incidents.json`)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -36,7 +36,7 @@
 | Default model `gemma2:2b` | `wired` | Configurable via `OLLAMA_MODEL`. No A/B between models yet. |
 | Prompt stability (sorted labels, deterministic ordering) | `wired` | `agent/brain.go:buildPrompt`. |
 | Local-only `Backend` chain (`Backend` interface + `FallbackChain`) | `wired` | `agent/backends.go`, `agent/fallback.go`. V0 only registers `OllamaBackend`; the `buildBackendChain` switch rejects all unknown names (including `deepseek`/`gemini`/`openai`) so a misconfigured `BACKEND_ORDER` cannot resurrect cloud paths — they are not in the binary. See CLAUDE.md rule 12. |
-| Ollama-on-WireGuard (Pi as primary backend) | `wired` | Tailscale was rejected for V0 (third-party trust path conflicts with rule 12). Plain WireGuard + pinned Ollama install scripts are committed under `scripts/`; see [`pi-deploy.md`](pi-deploy.md). The agent uses the existing `OllamaBackend` with `OLLAMA_URL` pointed at the Pi's tunnel IP — no new backend type. Awaiting first-deploy + 1-week soak before flipping to `shipped`. |
+| Ollama-on-WireGuard (Pi as primary backend) | `shipped` | Tailscale was rejected for V0 (third-party trust path conflicts with rule 12). Plain WireGuard + pinned Ollama install scripts are committed under `scripts/`; see [`pi-deploy.md`](pi-deploy.md). The agent uses the existing `OllamaBackend` with `OLLAMA_URL` pointed at the Pi's tunnel IP — no new backend type. Verified end-to-end 2026-05-13: WG handshakes both directions, qwen2.5:7b-instruct-q4_K_M serving on Pi at 10.10.0.2:11434, Aceso (running on CX23 from `ghcr.io/emil-oestergaard/aceso:latest`) successfully POSTing to `/api/generate` over the tunnel and writing valid `{cause, suggested_action}` diagnoses to `/data/incidents.json`. Warm-run latency ~16-19 s per diagnose; well inside the 30 s poll cadence. |
 
 ## Escalation
 
@@ -124,8 +124,8 @@ loop" layer that V1's approval UI will eventually formalize.
 | Model pre-pull + benchmark gate | `wired` | `pi-setup.sh` Phase 3b: 3 sequential diagnose-shaped prompts; first run discarded (cold load); both warm runs must complete in ≤60s. Failure: operator switches `OLLAMA_MODEL` to `qwen2.5:3b-instruct-q4_K_M` and re-runs. Default is `qwen2.5:7b-instruct-q4_K_M`. |
 | Cross-tunnel smoke test | `wired` | `cx23-setup.sh` ends with `POST /api/generate` over the tunnel and asserts the response decodes to `{cause, suggested_action}`. Same prompt shape the agent uses, so a green smoke run is a strong predictor for Phase 4. |
 | Pi-ready receipt (`/etc/aceso/pi-ready`) | `wired` | Stamped at end of `pi-setup.sh` with `ready_at`, `ollama_version`, `ollama_model`, `warm_max_seconds`, `kernel`. Human-readable; not consumed by the agent. |
-| First production deploy | `not started` | Phase 4 in `pi-deploy.md`. Flip is a 5-minute `.env` edit + `docker compose restart`. |
-| 1-week soak before prod flip | `not started` | Per Phase 5 in `pi-deploy.md`: synthetic alerts via dev stack, watch for memory leaks / tunnel staleness / model drift / SD-card write pressure. 24h is not enough — slow leaks need time. |
+| First production deploy | `shipped` | Completed 2026-05-13. Pi-ready receipt stamped at 17:50:18 UTC (`ollama_version=0.23.3`, `ollama_model=qwen2.5:7b-instruct-q4_K_M`, `warm_max_seconds=19`, `kernel=6.12.75+rpt-rpi-2712`). Aceso started on CX23 at 17:56:35 and produced five sane diagnoses in the first four minutes. |
+| 1-week soak before prod flip | `not started` | Per Phase 5 in `pi-deploy.md`: synthetic alerts via dev stack, watch for memory leaks / tunnel staleness / model drift / SD-card write pressure. 24h is not enough — slow leaks need time. **Soak began 2026-05-13; flip to `shipped` after 2026-05-20.** Synthetic alert deliberately kept firing through the soak so there's a guaranteed-every-30s signal exercising the full Prometheus → Loki → Ollama → NDJSON path. Disable after day 7 when real alerts come online (`mv monitoring/test_alert.yml monitoring/test_alert.yml.disabled && docker compose restart prometheus`). |
 
 ## V0 out-of-scope (deliberate deferrals — record only, do not build)
 
@@ -148,7 +148,7 @@ them, and so V1 planning has a clear backlog to draw from.
 | `docker-compose.yml` on external `monitoring` network | `shipped` | Pulls `${ACESO_IMAGE:-ghcr.io/emil-oestergaard/aceso:latest}` (built by CI). Named volume `aceso-data`, `restart: unless-stopped`, `pull_policy: always`, JSON-file log rotation. To pin a specific build, set `ACESO_IMAGE=ghcr.io/emil-oestergaard/aceso:sha-<short-sha>` in `.env`. |
 | Local dev stack (`docker-compose.dev.yml`) | `shipped` | Prometheus + Loki + Promtail + Ollama + Aceso on a private `aceso-dev-monitoring` bridge. Configs in `config/`. Always-firing test alert (`config/test_alert.yml`) labelled `job=aceso-self-test` so the Loki path is exercised. Verified end-to-end 2026-04-30: `AlwaysFiring` → Aceso poll → Loki query → Ollama diagnosis → NDJSON line in `/data/incidents.json`. See [`dev-stack.md`](dev-stack.md). |
 | CX23 monitoring stack (`monitoring/docker-compose.yml`) | `shipped` | Prometheus + Loki + Promtail + node-exporter for the production CX23, separate from Aceso's own compose so the observability surface has an independent lifecycle. Creates the shared external `monitoring` Docker network that Aceso joins. 30-day retention on both Prometheus TSDB and Loki chunks. Synthetic always-firing alert (`monitoring/test_alert.yml`) for first-tick verification; documented removal procedure once a real incident has landed. See [`monitoring-stack.md`](monitoring-stack.md). Verified end-to-end on CX23 2026-05-13: `/ready` returns "ready", `/labels` lists `{container,host,job,...}`, `/label/container/values` lists all four stack containers, synthetic `AlwaysFiring` is in `/api/v1/alerts`. |
-| Live deploy on a real VPS | `not started` | First production deploy will populate this row. |
+| Live deploy on a real VPS | `shipped` | Aceso pulled from `ghcr.io/emil-oestergaard/aceso:latest` running on Hetzner CX23 as of 2026-05-13. On the `monitoring` Docker network alongside Prometheus + Loki + Promtail + node-exporter (the local stack, not external). `OLLAMA_URL=http://10.10.0.2:11434` points across plain WireGuard to a 16 GB Raspberry Pi 5. `BACKEND_ORDER=ollama`, `HTTP_TIMEOUT_SECONDS=120`, `POLL_INTERVAL_SECONDS=30`, no ntfy (escalation log line only). |
 
 ## Lessons learned
 
@@ -165,3 +165,4 @@ Open items where the docs are correct in substance but need a rewrite
 in the operator's voice or a content pass. Not a backlog of features.
 
 - **ADR-0001 prose is in agent voice, not operator voice.** Reasoning matches the operator's intent (cloud-backend deletion, defense-in-depth via non-existent code paths, escalation over fallback) but the prose was written by Claude. Operator to rewrite over the next few days; the current text is acceptable as a placeholder. See [`adr/0001-local-only-inference.md`](adr/0001-local-only-inference.md).
+- **`pi-setup.sh` and `cx23-setup.sh` Phase 2 ping window is too tight.** Both scripts ping the WG peer within a 10 s window of bringing up `wg0`, which races the initial WireGuard handshake bootstrap (Pi's `PersistentKeepalive=25` + handshake retry can exceed 10 s; re-running `cx23-setup.sh` after the tunnel is up also bounces wg0 and re-races). Hit twice during initial V0 deploy 2026-05-13: once on the first `pi-setup.sh` run (CX23 peer not up yet — expected and handled by re-run after CX23 side comes up), once on the `cx23-setup.sh` re-run (10 s window expired before keepalive completed the re-handshake). Bump to ~60 s with retry-with-backoff in both scripts. Idempotent re-runs on a stable tunnel succeed, so this is backlog only — but it makes the first-deploy experience noisier than it needs to be.
