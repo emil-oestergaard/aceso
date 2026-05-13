@@ -1,0 +1,27 @@
+# Prometheus config for Aceso's CX23 monitoring stack.
+#
+# Production-tuned cadences (15 s scrape, 15 s eval) vs. the dev stack's
+# 5 s. The synthetic always-firing rule lives in test_alert.yml and is
+# loaded via rule_files below — remove or rename that file once Aceso's
+# first-tick verification is green.
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/test_alert.yml
+
+scrape_configs:
+  # Prometheus scrapes itself so its own /metrics are queryable. Useful
+  # for sanity checks and for alerts about Prometheus's own health.
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  # CX23 host metrics: CPU, RAM, disk, network, filesystem.
+  - job_name: node-exporter
+    static_configs:
+      - targets:
+          - node-exporter:9100

@@ -1,0 +1,31 @@
+# Synthetic always-firing alert for Aceso's CX23 first-tick verification.
+#
+# vector(1) > 0 evaluates to a single-sample vector on every tick, so
+# this alert is always active. With evaluation_interval=15s and rule
+# group interval=15s, expect "firing" within ~15 s of bringing the
+# monitoring stack up.
+#
+# REMOVE THIS RULE AFTER FIRST-TICK VERIFICATION. It exists so Aceso has
+# a deterministic alert to react to on its first poll. Once you've
+# confirmed `docker compose logs aceso` shows a real incident landing
+# in /data/incidents.json, disable this by renaming the file:
+#   mv test_alert.yml test_alert.yml.disabled
+#   docker compose restart prometheus
+# Aceso will then only react to real alerts you define.
+#
+# The `job: aceso-self-test` label is intentional: it gives Aceso's
+# LogQL builder a label it recognizes (one of {job, instance, container,
+# namespace, pod, service, app}) so the Loki path is exercised end to
+# end rather than short-circuited by the empty-selector skip.
+
+groups:
+  - name: aceso-self-test
+    interval: 15s
+    rules:
+      - alert: AlwaysFiring
+        expr: vector(1) > 0
+        labels:
+          severity: warning
+          job:      aceso-self-test
+        annotations:
+          summary: "Synthetic alert — remove after first-tick verification"

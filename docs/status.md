@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-09 (CLAUDE.md rule reorder: 7-11 shift to 8-12; new rule 7 "Don't volunteer scope")
+> Last updated: 2026-05-13 (CX23 monitoring stack lands under `monitoring/`)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -147,6 +147,7 @@ them, and so V1 planning has a clear backlog to draw from.
 | Multi-stage Dockerfile (`golang:1.26-alpine` → `alpine:3.23`) | `shipped` | `agent/Dockerfile`. Static binary, non-root `aceso` user, `VOLUME /data`. Bumped from 3.20 ahead of its May-2026 EOL. |
 | `docker-compose.yml` on external `monitoring` network | `shipped` | Pulls `${ACESO_IMAGE:-ghcr.io/emil-oestergaard/aceso:latest}` (built by CI). Named volume `aceso-data`, `restart: unless-stopped`, `pull_policy: always`, JSON-file log rotation. To pin a specific build, set `ACESO_IMAGE=ghcr.io/emil-oestergaard/aceso:sha-<short-sha>` in `.env`. |
 | Local dev stack (`docker-compose.dev.yml`) | `shipped` | Prometheus + Loki + Promtail + Ollama + Aceso on a private `aceso-dev-monitoring` bridge. Configs in `config/`. Always-firing test alert (`config/test_alert.yml`) labelled `job=aceso-self-test` so the Loki path is exercised. Verified end-to-end 2026-04-30: `AlwaysFiring` → Aceso poll → Loki query → Ollama diagnosis → NDJSON line in `/data/incidents.json`. See [`dev-stack.md`](dev-stack.md). |
+| CX23 monitoring stack (`monitoring/docker-compose.yml`) | `wired` | Prometheus + Loki + Promtail + node-exporter for the production CX23, separate from Aceso's own compose so the observability surface has an independent lifecycle. Creates the shared external `monitoring` Docker network that Aceso joins. 30-day retention on both Prometheus TSDB and Loki chunks. Synthetic always-firing alert (`monitoring/test_alert.yml`) for first-tick verification; documented removal procedure once a real incident has landed. See [`monitoring-stack.md`](monitoring-stack.md). Flip to `shipped` after first production bring-up. |
 | Live deploy on a real VPS | `not started` | First production deploy will populate this row. |
 
 ## Lessons learned

@@ -1,0 +1,132 @@
+# Aceso V0 — CX23 monitoring stack (Prometheus + Loki + Promtail + node-exporter).
+#
+# This compose stands up the observability surface that Aceso consumes on
+# the Hetzner CX23. It is deployed BEFORE the root docker-compose.yml,
+# because Aceso (the diagnoser) needs Prometheus (the alert source) and
+# Loki (the log archive) to exist on the shared `monitoring` Docker
+# network before it has anything to poll.
+#
+# Topology:
+#   prometheus    — scrapes node-exporter + itself; hosts the synthetic
+#                   always-firing alert from test_alert.yml so Aceso has
+#                   a deterministic first-tick signal.
+#   loki          — single-binary mode, filesystem storage, 7-day
+#                   retention. NOT suitable for multi-host deployments.
+#   promtail      — tails every Docker container's stdout/stderr via the
+#                   host socket, ships to loki. Positions persisted on a
+#                   named volume so they survive container restart.
+#   node-exporter — exports CX23 host metrics (CPU, RAM, disk, network)
+#                   so Prometheus has something real to scrape.
+#
+# This compose CREATES the `monitoring` network with an explicit name.
+# The root docker-compose.yml (aceso) joins it as external.
+#
+# Usage:
+#   cd monitoring
+#   docker compose up -d
+#   docker compose ps         # all four services Up
+#   docker compose logs -f    # watch for errors
+#
+# After first-tick verification (see docs/deploy.md Phase C), the
+# synthetic alert is no longer needed. Disable it by renaming the rule
+# file and reloading Prometheus:
+#   mv test_alert.yml test_alert.yml.disabled
+#   docker compose restart prometheus
+# Aceso will then only react to real alerts you define.
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./test_alert.yml:/etc/prometheus/test_alert.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    networks:
+      - monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/var/lib/promtail
+    networks:
+      - monitoring
+    depends_on:
+      - loki
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro,rslave
+    networks:
+      - monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  prometheus-data:
+    driver: local
+  loki-data:
+    driver: local
+  promtail-positions:
+    driver: local
+
+networks:
+  # Explicit network name "monitoring" so the root docker-compose.yml can
+  # join it as `external: true`. Without `name:` here, Docker Compose
+  # would prefix it with the project name.
+  monitoring:
+    name: monitoring
+    driver: bridge

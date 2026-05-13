@@ -113,17 +113,24 @@ Ollama errors. Force a chain test by stopping the local Ollama container
 (`docker compose -f docker-compose.dev.yml stop ollama`) and watching
 Aceso fall through to DeepSeek and then Gemini.
 
-## Differences from production (`docker-compose.yml`)
+## Differences from production (`docker-compose.yml` + `monitoring/`)
 
-- The dev compose **defines** the network; production assumes an
-  existing external `monitoring` network created with `docker network
-  create monitoring` and joined by services (Prometheus, Loki, Ollama)
-  outside this repo.
-- The dev compose **builds** Aceso from `./agent`; production tags it
-  `aceso:latest` and is intended to be deployed via a registry.
-- The dev compose tightens cadences (15 s poll, 30 s HTTP timeout)
-  vs. production defaults (30 s poll, 120 s HTTP timeout) so the
-  smoke-test loop is visible inside a minute, not five.
+- The dev compose **defines** the `monitoring` network as a private
+  bridge `aceso-dev-monitoring`; production uses an external
+  `monitoring` network created by `monitoring/docker-compose.yml` and
+  joined by both that stack and the root Aceso compose. See
+  [`monitoring-stack.md`](monitoring-stack.md).
+- The dev compose bundles Prometheus + Loki + Promtail + Ollama + Aceso
+  in one file; production splits the observability stack
+  (`monitoring/`) from the agent (`./docker-compose.yml`) so they have
+  independent lifecycles, and the inference plane lives on the Pi over
+  WireGuard rather than alongside Aceso.
+- The dev compose **builds** Aceso from `./agent`; production pulls
+  the prebuilt image from GHCR (`ghcr.io/emil-oestergaard/aceso:latest`).
+- The dev compose tightens cadences (15 s poll, 30 s HTTP timeout, 5 s
+  scrape interval) vs. production defaults (30 s poll, 120 s HTTP
+  timeout, 15 s scrape interval) so the smoke-test loop is visible
+  inside a minute, not five.
 - The dev compose pins all log drivers to the same JSON-file rotation
   to keep `docker compose logs` readable.
 

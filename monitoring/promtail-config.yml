@@ -1,0 +1,58 @@
+# Promtail config for Aceso's CX23 monitoring stack.
+#
+# Two scrape sources:
+#   1) /var/log/*.log on the host (job=varlogs)
+#   2) Docker service-discovery — every container's stdout/stderr,
+#      relabeled so the `container` label is the human-readable name.
+#
+# The `container` label is one of Aceso's seven preferred LogQL
+# selectors (agent/loki.go: {job, instance, container, namespace, pod,
+# service, app}), so any container's logs become reachable via
+# {container="<name>"} from a future alert that carries that label.
+#
+# Positions are persisted to /var/lib/promtail (named volume) so they
+# survive container restart and Promtail doesn't re-ship everything
+# from epoch on bounce.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level:        info
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # 1) Host /var/log/*.log
+  - job_name: varlogs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job:      varlogs
+          host:     cx23
+          __path__: /var/log/*.log
+
+  # 2) Docker container stdout/stderr via the host docker socket.
+  - job_name: docker
+    docker_sd_configs:
+      - host:             unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Strip the leading "/" from container names: "/aceso" → "aceso".
+      - source_labels: ['__meta_docker_container_name']
+        regex:         '/(.*)'
+        target_label:  container
+      # Surface the image so the LLM can reason about the runtime.
+      - source_labels: ['__meta_docker_container_image']
+        target_label:  image
+      # stdout vs stderr.
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label:  stream
+      # Always-set job label so the LogQL builder finds something even
+      # if no alert provides a job label.
+      - target_label: job
+        replacement:  docker

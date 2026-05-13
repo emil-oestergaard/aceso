@@ -23,6 +23,8 @@ no existing doc fits, add a new file here and link it from this index.
 | [`adr/`](adr/README.md) | Architecture Decision Records — one-time write-ups for decisions that rule out a category of future implementation. See [`adr/README.md`](adr/README.md) for when to write one. | active |
 | [`roadmap.md`](roadmap.md) | Milestone planning beyond V0 — V1 (HITL action proposals) and V2 (bounded autonomous remediation). Captures shipping definitions, non-features, and open ADRs per milestone. | active |
 | [`incidents-schema.md`](incidents-schema.md) | Authoritative description of the `/data/incidents.json` line format. Documents the v0 shape and the planned v1 cutover (schema_version, incident_id, structured backend_errors, proposal/approval/execution fields). | active |
+| [`deploy.md`](deploy.md) | Unified V0 deploy walkthrough — Pi + CX23 + GHCR pull + first-tick verification. Cross-references `pi-deploy.md` (Pi-side detail) and `dev-stack.md` (synthetic soak alert). | active |
+| [`monitoring-stack.md`](monitoring-stack.md) | CX23 observability stack (Prometheus + Loki + Promtail + node-exporter) that Aceso reads from. Brought up before Aceso itself via `monitoring/docker-compose.yml`. | active |
 
 ## Planned docs
 
@@ -36,7 +38,6 @@ not preemptively.
 | `dependencies.md` | First external Go dependency (must include rationale, license, last release, maintenance signal). |
 | `prompting.md` | First substantive change to the prompt structure or an A/B between models. |
 | `testing.md` | First time the test layout (unit / integration / fixtures) needs cross-file convention. |
-| `deploy.md` | First non-default deployment topology (multi-VPS, alternative networks, secrets backends). |
 
 ## Adding a new doc
 
