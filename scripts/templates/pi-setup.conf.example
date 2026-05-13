@@ -42,7 +42,7 @@ WG_PEER_ALLOWED=10.10.0.1/32
 # Find the canonical hash on the release page:
 #   https://github.com/ollama/ollama/releases/tag/v${OLLAMA_VERSION}
 # Look for `ollama-linux-arm64` in `sha256sums.txt`.
-OLLAMA_VERSION=0.5.7
+OLLAMA_VERSION=0.23.3
 
 # REQUIRED. Empty values cause the script to abort — there is no
 # fallback default, because a stale committed default is exactly the

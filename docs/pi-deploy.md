@@ -115,7 +115,7 @@ the deployment receipt:
 
 ```
 ready_at=2026-05-07T22:00:00Z
-ollama_version=0.5.7
+ollama_version=0.23.3
 ollama_model=qwen2.5:7b-instruct-q4_K_M
 warm_max_seconds=42
 kernel=6.6.31+rpt-rpi-2712
