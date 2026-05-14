@@ -23,3 +23,4 @@ section pointing at the actual files and commits.
 | [002](002-human-escalation-over-cloud-fallback.md) | Human escalation, not cloud fallback, when local inference is unreachable | accepted |
 | [003](003-plain-wireguard-over-tailscale.md) | Plain WireGuard for the Pi inference plane (no Tailscale) | accepted |
 | [004](004-ghcr-image-publishing.md) | Publish the agent image to GHCR; CX23 pulls instead of builds | accepted |
+| [005](005-hitl-action-proposals.md) | V1 — Human-in-the-loop action proposals | proposed (draft) |
