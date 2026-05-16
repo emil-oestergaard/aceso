@@ -1,189 +1,153 @@
 # CLAUDE.md — repo guide for AI agents
 
-**What this repo is.** `aceso` is a self-healing AI agent for VPS
-observability, written in Go. It polls Prometheus for firing alerts,
-queries Loki for the logs from each affected target, and asks a local
-Ollama model to produce a `{cause, suggested_action}` diagnosis. Every
-incident is appended as NDJSON to `/data/incidents.json`. **V0 observes
-and diagnoses only** — no writes against the host or any service.
-Roadmap: V1 adds human-in-the-loop action proposals, V2 adds bounded
-autonomous remediation for whitelisted runbooks. The agent is stateless
-except for the incident log; the binary is stdlib-only Go shipped in a
-multi-stage Docker image.
+**aceso** is a stdlib-only Go self-healing agent for VPS observability: poll
+Prometheus for firing alerts → fetch the matching Loki logs → ask a local
+Ollama model for a `{cause, suggested_action}` diagnosis → persist as NDJSON.
+**V0 observes and diagnoses only — no writes.** See [`README.md`](README.md)
+for the full overview and roadmap.
 
-## First thing to read
+## Start here
 
-Always open [`docs/status.md`](docs/status.md) first. It is the living
-matrix of which capabilities are wired end-to-end, which are stubbed,
-and which are deferred — which alerts the agent has been tested
-against, which Loki label sets are queryable in practice, which Ollama
-models have produced reliable diagnoses, and which roadmap milestones
-have actually shipped. **Do not assume a capability exists in
-production code unless this file says so.** If `docs/status.md` does
-not yet exist for the change you are about to make, your first commit
-creates it.
+Open [`docs/status.md`](docs/status.md) **first** — the living matrix of which
+capabilities are wired, stubbed, or deferred. **Do not assume a capability
+exists in production unless this file says so.** If it does not exist yet for
+the change you are making, your first commit creates it. Then
+[`docs/INDEX.md`](docs/INDEX.md) maps every topic doc.
 
-Then [`docs/INDEX.md`](docs/INDEX.md) for the full map of topic docs.
+## Verify your work
+
+Give yourself a feedback loop on every change. All commands run from `agent/`:
+
+```bash
+cd agent
+go build ./...                 # compiles
+go vet ./...                   # CI gate 1
+go test -race -cover ./...     # CI gate 2 — race mandatory, 80% coverage floor
+gofmt -l .                     # must print nothing
+```
+
+CI (`.github/workflows/build.yml`) runs `go vet` then
+`go test -race -cover -count=1 ./...`; both must pass before any commit.
+
+Run the agent locally without Docker:
+
+```bash
+cd agent
+export PROMETHEUS_URL=http://localhost:9090 LOKI_URL=http://localhost:3100 OLLAMA_URL=http://localhost:11434
+go run .
+```
+
+Docker quickstart and the full env-var reference live in [`README.md`](README.md).
 
 ## Where code lives
 
 - `agent/main.go` — entrypoint, signal handling, polling ticker
 - `agent/config.go` — env-driven configuration loader
-- `agent/prometheus.go` — client for `/api/v1/alerts`, firing-state filter
-- `agent/loki.go` — client for `/loki/api/v1/query_range`, LogQL built from alert labels
-- `agent/ollama.go` — client for `/api/generate`, JSON-output parser with prose-fence recovery
-- `agent/backends.go` — `Backend` interface + `OllamaBackend` + `buildBackendChain` resolver. **Local-only**: no third-party LLM API code paths exist in the binary.
-- `agent/fallback.go` — `FallbackChain` that tries each backend in order and returns the first success or a wrapped error if all fail
-- `agent/escalate.go` — `Escalator` that surfaces backend-chain failures to a human via a structured log line and (optionally) an ntfy.sh push
-- `agent/brain.go` — orchestrator: prompt construction + NDJSON incident persistence + escalation routing on chain failure
+- `agent/prometheus.go` — `/api/v1/alerts` client, firing-state filter
+- `agent/loki.go` — `/loki/api/v1/query_range` client, LogQL from alert labels
+- `agent/ollama.go` — `/api/generate` client, JSON parser with prose-fence recovery
+- `agent/backends.go` — `Backend` interface, `OllamaBackend`, `buildBackendChain` (local-only — see Rule 12)
+- `agent/fallback.go` — `FallbackChain`: first success, or a wrapped error if all fail
+- `agent/escalate.go` — `Escalator`: surfaces chain failure to a human (log line + optional ntfy.sh push)
+- `agent/brain.go` — orchestrator: prompt construction, NDJSON persistence, escalation routing
 - `agent/go.mod` — module manifest, toolchain pin (`go1.26.2`)
-- `agent/Dockerfile` — multi-stage build, static binary, non-root runtime
-- `docker-compose.yml` — `aceso` service, named volume for `/data`, external `monitoring` network
-- `monitoring/` — CX23 observability stack: `docker-compose.yml` (Prometheus + Loki + Promtail + node-exporter, creates the shared `monitoring` network), `prometheus.yml`, `loki-config.yml`, `promtail-config.yml`, `test_alert.yml` (synthetic first-tick alert). Operator runbook in [`docs/monitoring-stack.md`](docs/monitoring-stack.md).
-- `scripts/` — Pi inference plane deployment: `pi-setup.sh` (hardening + WG + pinned Ollama + benchmark gate), `cx23-setup.sh` (CX23 WG side + cross-tunnel smoke), `templates/` (WG conf templates, ollama.service, conf examples). Operator runbook in [`docs/pi-deploy.md`](docs/pi-deploy.md).
-- `docs/` — topic docs, sized for AI context (see rules below)
+- `agent/Dockerfile` — multi-stage static build, non-root runtime
+- `docker-compose.yml` — `aceso` service, `/data` volume, external `monitoring` network
+- `monitoring/` — CX23 observability stack (Prometheus + Loki + Promtail + node-exporter)
+- `scripts/` — Pi inference-plane deploy (`pi-setup.sh`, `cx23-setup.sh`, `templates/`)
+
+## For deeper context, read the matching doc
+
+Each `docs/` file is sized to hold fully in context. Before changing an area,
+read its doc:
+
+| Topic | Doc |
+|-------|-----|
+| What is wired vs. stubbed vs. deferred | [`docs/status.md`](docs/status.md) |
+| Full topic-doc map | [`docs/INDEX.md`](docs/INDEX.md) |
+| V1/V2 milestones, non-features | [`docs/roadmap.md`](docs/roadmap.md) |
+| `/data/incidents.json` line format | [`docs/incidents-schema.md`](docs/incidents-schema.md) |
+| Local dev stack + first smoke test | [`docs/dev-stack.md`](docs/dev-stack.md) |
+| CX23 observability stack | [`docs/monitoring-stack.md`](docs/monitoring-stack.md) |
+| V0 production deploy walkthrough | [`docs/deploy.md`](docs/deploy.md) |
+| Pi inference-plane runbook | [`docs/pi-deploy.md`](docs/pi-deploy.md) |
+| Why local-only / human-escalation / WireGuard | [`docs/adr/`](docs/adr/README.md) |
+
+`docs/error-handling.md` and `docs/dependencies.md` are planned (see
+`INDEX.md`) — create them when rules 8/9 first apply.
 
 ## Rules for agents working here
 
-1. **Update the docs in the same change.** When you touch a polling
-   cadence, env var, label-selection heuristic, prompt structure,
-   incident schema, deliverable, or deploy topology, update the matching
-   file under `docs/` in the *same commit*. Start from `docs/INDEX.md`
-   to find the right one. If none fits, add a new file and link it from
-   `INDEX.md`. **A change without a doc update is unfinished work.**
+1. **Docs land with code.** Touch a polling cadence, env var, label heuristic,
+   prompt, incident schema, deliverable, or deploy topology → update the
+   matching `docs/` file in the *same commit*. A change without a doc update is
+   unfinished work.
 
-2. **Flip `docs/status.md`** when a capability moves between
-   stub / wired / deferred — when a new alert is supported, a model is
-   validated, a remediation moves from V1 plan to V1 ship, **or when
-   tests are added or removed for any source file**. Same commit ships
-   the wiring (or the tests) and updates the row. Adding tests without
-   flipping the per-file test row in `docs/status.md` is unfinished
-   work, even if no production code changed.
+2. **Flip `docs/status.md`** whenever a capability moves between
+   stub / wired / deferred — a new alert is supported, a model is validated, a
+   remediation ships, *or tests are added/removed for any file*. The same
+   commit ships the wiring (or the tests) and updates the row. No `_test.go`
+   change is complete without a matching `status.md` diff.
 
-3. **Keep every `docs/*.md` ≤ 400 lines and ≤ 3 000 words.** If a doc
-   grows past the limit, split it into a sibling file rather than
-   inflating one. Docs are sized so the next agent can hold the relevant
-   one fully in context.
+3. **Keep every `docs/*.md` ≤ 400 lines and ≤ 3000 words.** Past the limit,
+   split into a sibling file — never inflate one. Docs are sized so the next
+   agent can hold the relevant one fully in context.
 
-4. **Tests land with code. No exceptions.** Every new function with
-   non-trivial behavior ships with a unit test. Every external API
-   client (`prometheus.go`, `loki.go`, `ollama.go`) has table-driven
-   tests against `httptest.Server` fixtures covering happy path,
-   non-2xx, malformed JSON, and timeout. Every prompt builder and
-   persistence helper has tests asserting deterministic output. The
-   orchestrator (`brain.go`) has integration tests exercising the full
-   alert → logs → prompt → diagnosis → persist path against fakes.
-   When tests land — either alongside new code or as a backfill task —
-   the matching per-file row in `docs/status.md` flips in the same
-   commit (see rule 2). No commit that adds or removes a `_test.go`
-   file is complete without a matching `status.md` diff.
+4. **Tests land with code. No exceptions.** Every non-trivial function ships a
+   unit test. Every external API client (`prometheus.go`, `loki.go`,
+   `ollama.go`) has table-driven `httptest.Server` tests covering happy path,
+   non-2xx, malformed JSON, and timeout. Prompt builders and persistence
+   helpers have deterministic-output tests. `brain.go` has integration tests
+   over the full alert → logs → prompt → diagnosis → persist path against fakes.
 
-5. **Coverage floor: 80 %. Race detector mandatory.** PRs must pass
-   `go test -race -cover ./...`. The agent runs ticks under context
-   deadlines and may grow concurrency over time; a data race here means
-   a self-healing system that silently corrupts its own incident log.
+5. **Coverage floor 80%. Race detector mandatory.** `go test -race -cover ./...`
+   must pass. The agent runs ticks under context deadlines — a data race here
+   silently corrupts its own incident log.
 
-6. **Test the *important* components, not every line.** Configuration
-   loading, label-selector construction, JSON envelope parsing,
-   prompt-text stability, NDJSON append safety, partial-failure
-   recording, and the polling loop's bounded-deadline semantics are all
-   load-bearing. Trivial getters are not. When in doubt, test it.
+6. **Test the important components, not every line.** Config loading,
+   label-selector construction, JSON-envelope parsing, prompt-text stability,
+   NDJSON append safety, partial-failure recording, and bounded-deadline
+   polling are load-bearing. Trivial getters are not. When in doubt, test it.
 
-7. **Don't volunteer scope.** When a follow-on task seems valuable
-   while you're working on something the operator asked for, name
-   it as a candidate for the operator's backlog rather than
-   offering to do it now. "Want me to also write X?" prompts
-   silently expand the scope of a session past what the operator
-   actually prioritized; one or two such offers are fine, a chain
-   of them is the failure mode this rule exists to prevent. Land
-   the requested work and stop. Surface candidates as backlog
-   items in `docs/status.md` (under the "Documentation debt" or
-   "V0 out-of-scope" sections, depending on shape) or as questions
-   for the operator, but do not offer to execute them in the
-   current session unless the operator names them as in-scope.
-   Architectural shifts (e.g. switching deployment topology,
-   adding a third-party trust surface) are *never* candidates for
-   "while we're here" — those are explicit ADR-level decisions
-   that belong in their own session.
+7. **Don't volunteer scope.** Land the requested work and stop. Surface
+   follow-ons as backlog items in `docs/status.md` ("Documentation debt" / "V0
+   out-of-scope") or as a question — don't offer to execute them now.
+   Architectural shifts (deploy topology, a new trust surface) are never a
+   "while we're here" — they need their own ADR-level session.
 
-8. **Stdlib first.** External dependencies require a written
-   justification in `docs/dependencies.md` (rationale, license, last
-   release, maintenance signal). The stdlib-only baseline is a feature,
-   not an accident — it keeps the binary small, the audit surface tiny,
-   and the supply chain trivial to reason about.
+8. **Stdlib first.** External dependencies require written justification in
+   `docs/dependencies.md` (rationale, license, last release, maintenance
+   signal) — create that doc on the first dependency. The stdlib-only baseline
+   keeps the binary small and the supply chain trivial to audit.
 
-9. **Graceful degradation is non-negotiable.** Loki down ≠ skip the
-   alert. Ollama timeout ≠ crash. Every external call has explicit
-   error handling, and every partial failure is recorded on the
-   incident with an `error` field so the history shows *what* the agent
-   could and couldn't see at decision time. See
-   [`docs/error-handling.md`](docs/error-handling.md).
+9. **Graceful degradation is non-negotiable.** Loki down ≠ skip the alert.
+   Ollama timeout ≠ crash. Every external call has explicit error handling, and
+   every partial failure is recorded on the incident with an `error` field so
+   the history shows what the agent could and couldn't see at decision time.
 
-10. **V0 is read-only.** The agent must not execute writes against the
-    host or any monitored service. HTTP `GET` only against Prometheus
-    and Loki; `POST` only to Ollama. Any change that introduces a write
-    path is an architectural change and ships behind explicit
-    human-in-the-loop approval. See [`docs/roadmap.md`](docs/roadmap.md).
+10. **V0 is read-only.** No writes against the host or any monitored service.
+    HTTP `GET` only to Prometheus and Loki; `POST` only to Ollama. Any write
+    path is an architectural change behind explicit human-in-the-loop approval
+    (see [`docs/roadmap.md`](docs/roadmap.md)).
 
-11. **The incident schema is a contract.** `/data/incidents.json` will
-    be consumed by future tooling (dashboards, the V1 approval UI,
-    post-incident review). Schema changes are versioned and documented
-    in [`docs/incidents-schema.md`](docs/incidents-schema.md). Breaking
-    changes ship a migration note in the same commit.
+11. **The incident schema is a contract.** `/data/incidents.json` feeds future
+    tooling (dashboards, the V1 approval UI, post-incident review). Schema
+    changes are versioned in [`docs/incidents-schema.md`](docs/incidents-schema.md);
+    breaking changes ship a migration note in the same commit.
 
-12. **Inference is local-only. No exceptions.** The only LLM backend
-    Aceso talks to is a local Ollama instance — typically a Raspberry
-    Pi reachable over a plain WireGuard tunnel in production, or a
-    local container in dev. Third-party LLM APIs (DeepSeek, Gemini,
-    OpenAI, Anthropic, etc.) are out of scope and the binary contains
-    no code paths to them. This is not a configuration toggle:
-    defense in depth means flags rot and config drifts, so the
-    *implementations themselves do not exist in the package*. If a
-    future PR proposes adding a cloud backend "for reliability",
-    reject it and propose extending the escalation layer instead.
-    Production logs sent through the prompt can contain hostnames,
-    user IDs, request paths, and stack traces; that data must not
-    leave the operator's infrastructure. When the chain fails, Aceso
-    escalates to a human (see `agent/escalate.go` and the
-    `escalated: true` incident shape) — it does NOT silently route
-    around the outage. Decision rationale lives in
-    [`docs/adr/0001-local-only-inference.md`](docs/adr/0001-local-only-inference.md)
-    and [`docs/adr/0002-human-escalation-over-cloud-fallback.md`](docs/adr/0002-human-escalation-over-cloud-fallback.md);
-    the network plane lives in
-    [`docs/adr/0003-plain-wireguard-over-tailscale.md`](docs/adr/0003-plain-wireguard-over-tailscale.md).
+12. **Inference is local-only. No exceptions.** The only LLM backend is a local
+    Ollama instance. Third-party LLM APIs (DeepSeek, Gemini, OpenAI, Anthropic,
+    …) are out of scope — the implementations *do not exist in the package*, by
+    design. If a PR proposes adding one, reject it and extend the escalation
+    layer instead: on chain failure Aceso escalates to a human (`escalate.go`,
+    `escalated: true`), it never silently routes around the outage. Rationale,
+    incl. the prod-log-PII argument:
+    [`adr/001`](docs/adr/001-local-only-inference.md),
+    [`adr/002`](docs/adr/002-human-escalation-over-cloud-fallback.md),
+    [`adr/003`](docs/adr/003-plain-wireguard-over-tailscale.md).
 
-## Running
+## Keep this file tuned
 
-See [`README.md`](README.md) for the shortest path. The short version:
-
-```bash
-# One-time: create the shared monitoring network
-docker network create monitoring
-
-# Pull the latest image from GHCR and start Aceso
-docker compose pull
-docker compose up -d
-
-# Tail diagnoses
-docker compose logs -f aceso
-
-# Inspect persisted incidents
-docker compose exec aceso cat /data/incidents.json
-```
-
-Local development without Docker:
-
-```bash
-cd agent
-export PROMETHEUS_URL=http://localhost:9090
-export LOKI_URL=http://localhost:3100
-export OLLAMA_URL=http://localhost:11434
-go run .
-```
-
-Run the test suite (must pass before any commit):
-
-```bash
-cd agent
-go test -race -cover ./...
-```
+CLAUDE.md is a living prompt, not documentation. When an agent gets something
+wrong, add a terse line to the right section so it doesn't recur — and keep it
+lean: short rules beat long prose.
