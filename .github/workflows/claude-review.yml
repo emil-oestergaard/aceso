@@ -1,0 +1,39 @@
+# Aceso — Claude PR reviewer (manual trigger only).
+#
+# Fires ONLY when someone comments "@claude review" on a pull request.
+# No automatic-on-open, no automatic-on-push — full manual control.
+#
+# Auth: OAuth token (CLAUDE_CODE_OAUTH_TOKEN repo secret), not an API key.
+# Permissions: read-only review — Claude can post PR comments but cannot
+# commit to the branch (no `contents: write`).
+#
+# The reviewer auto-reads CLAUDE.md at the repo root for Aceso's rules
+# (stdlib-only, local-only inference, V0 read-only, docs-land-with-code) —
+# those rules are deliberately NOT duplicated here.
+
+name: claude-review
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    name: claude code review
+    # Gate: a PR comment (not a plain issue) containing the exact phrase.
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude review')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the action can diff the PR branch
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
