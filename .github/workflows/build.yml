@@ -90,4 +90,4 @@ jobs:
           # we've confirmed the basic pipeline (test → build → push)
           # is green on a real run, then re-enable in a follow-up
           # commit and verify on the next push to main. See
-          # docs/adr/0004-ghcr-image-publishing.md "Implementation".
+          # docs/adr/004-ghcr-image-publishing.md "Implementation".

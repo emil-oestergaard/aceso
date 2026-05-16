@@ -83,7 +83,7 @@ the documented default.
 | `alert.activeAt` | RFC 3339 string | yes | When Prometheus first marked the alert active. |
 | `alert.value` | string | yes | Prometheus's string-encoded numeric value (Prometheus emits this as a string, we don't reinterpret). |
 | `log_lines[].timestamp` | RFC 3339 string | yes | Log line timestamp from Loki. |
-| `log_lines[].line` | string | yes | Raw log line. May contain operator-owned data (hostnames, request paths, stack traces) — see [ADR-0001](adr/0001-local-only-inference.md). |
+| `log_lines[].line` | string | yes | Raw log line. May contain operator-owned data (hostnames, request paths, stack traces) — see [ADR-001](adr/001-local-only-inference.md). |
 | `log_lines[].stream` | map<string,string> | yes | Loki stream labels for the matched line set. |
 | `diagnosis.cause` | string | yes (may be empty when `escalated=true`) | LLM output. |
 | `diagnosis.suggested_action` | string | yes (may be empty when `escalated=true`) | LLM output. Free text — nothing parses this in v0. |
@@ -234,7 +234,7 @@ The agent (the only writer in V0):
 ## Open questions for v1
 
 These are listed here so they don't get lost; resolution belongs in
-ADRs (see [`roadmap.md`](roadmap.md) — ADR-0004 / 0005 / 0006).
+ADRs (see [`roadmap.md`](roadmap.md) — ADR-004 / 005 / 006).
 
 - Whether `incident_id` is part of the agent's API surface or only
   internal. (Lean: surfaced — operators will reference it.)
@@ -246,10 +246,10 @@ ADRs (see [`roadmap.md`](roadmap.md) — ADR-0004 / 0005 / 0006).
 
 ## See also
 
-- [`adr/0001-local-only-inference.md`](adr/0001-local-only-inference.md)
+- [`adr/001-local-only-inference.md`](adr/001-local-only-inference.md)
   for why `log_lines[].line` content cannot leave operator
   infrastructure.
-- [`adr/0002-human-escalation-over-cloud-fallback.md`](adr/0002-human-escalation-over-cloud-fallback.md)
+- [`adr/002-human-escalation-over-cloud-fallback.md`](adr/002-human-escalation-over-cloud-fallback.md)
   for the `escalated:true` semantics.
 - [`roadmap.md`](roadmap.md) for the V1 milestone shipping
   definition that anchors v1's cutover.

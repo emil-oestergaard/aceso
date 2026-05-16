@@ -16,10 +16,10 @@ Every `POLL_INTERVAL_SECONDS` (default 30s) Aceso:
 3. Builds a prompt describing the alert + logs and asks the local
    Ollama instance for a diagnosis. **Aceso is local-only by design** —
    the binary contains no code paths to third-party LLM APIs (see
-   [ADR-0001](docs/adr/0001-local-only-inference.md)). In production
+   [ADR-001](docs/adr/001-local-only-inference.md)). In production
    the recommended topology is a 16 GB Raspberry Pi running Ollama,
    reached over a plain WireGuard tunnel from the VPS (see
-   [ADR-0003](docs/adr/0003-plain-wireguard-over-tailscale.md) and
+   [ADR-003](docs/adr/003-plain-wireguard-over-tailscale.md) and
    the runbook in [`docs/pi-deploy.md`](docs/pi-deploy.md)); in dev,
    `docker-compose.dev.yml` ships a local Ollama container.
 4. **On success:** logs the diagnosis to stdout and appends the full
