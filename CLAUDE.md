@@ -1,10 +1,10 @@
 # CLAUDE.md — repo guide for AI agents
 
-**aceso** is a stdlib-only Go self-healing agent for VPS observability: it
-polls Prometheus for firing alerts, pulls the matching Loki logs, and asks a
-local Ollama model for a `{cause, suggested_action}` diagnosis, appending each
-incident to `/data/incidents.json`. **V0 observes and diagnoses only — no
-writes.** See [`README.md`](README.md) for the full overview and roadmap.
+**aceso** is a stdlib-only Go self-healing agent for VPS observability: poll
+Prometheus for firing alerts → fetch the matching Loki logs → ask a local
+Ollama model for a `{cause, suggested_action}` diagnosis → persist as NDJSON.
+**V0 observes and diagnoses only — no writes.** See [`README.md`](README.md)
+for the full overview and roadmap.
 
 ## Start here
 
@@ -46,7 +46,7 @@ Docker quickstart and the full env-var reference live in [`README.md`](README.md
 - `agent/prometheus.go` — `/api/v1/alerts` client, firing-state filter
 - `agent/loki.go` — `/loki/api/v1/query_range` client, LogQL from alert labels
 - `agent/ollama.go` — `/api/generate` client, JSON parser with prose-fence recovery
-- `agent/backends.go` — `Backend` interface, `OllamaBackend`, `buildBackendChain`. Local-only — no third-party LLM code paths exist.
+- `agent/backends.go` — `Backend` interface, `OllamaBackend`, `buildBackendChain` (local-only — see Rule 12)
 - `agent/fallback.go` — `FallbackChain`: first success, or a wrapped error if all fail
 - `agent/escalate.go` — `Escalator`: surfaces chain failure to a human (log line + optional ntfy.sh push)
 - `agent/brain.go` — orchestrator: prompt construction, NDJSON persistence, escalation routing
@@ -136,14 +136,12 @@ read its doc:
     breaking changes ship a migration note in the same commit.
 
 12. **Inference is local-only. No exceptions.** The only LLM backend is a local
-    Ollama instance (a Raspberry Pi over plain WireGuard in prod, a container
-    in dev). Third-party LLM APIs (DeepSeek, Gemini, OpenAI, Anthropic, …) are
-    out of scope — the implementations *do not exist in the package*, by
-    design, so flags can't rot and config can't drift. Production logs in the
-    prompt carry hostnames, user IDs, request paths, and stack traces; that
-    data must not leave the operator's infrastructure. On chain failure Aceso
-    escalates to a human (`escalate.go`, `escalated: true`) — it never silently
-    routes around the outage. Rationale:
+    Ollama instance. Third-party LLM APIs (DeepSeek, Gemini, OpenAI, Anthropic,
+    …) are out of scope — the implementations *do not exist in the package*, by
+    design. If a PR proposes adding one, reject it and extend the escalation
+    layer instead: on chain failure Aceso escalates to a human (`escalate.go`,
+    `escalated: true`), it never silently routes around the outage. Rationale,
+    incl. the prod-log-PII argument:
     [`adr/001`](docs/adr/001-local-only-inference.md),
     [`adr/002`](docs/adr/002-human-escalation-over-cloud-fallback.md),
     [`adr/003`](docs/adr/003-plain-wireguard-over-tailscale.md).
