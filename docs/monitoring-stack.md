@@ -151,9 +151,17 @@ incident written to `/data/incidents.json`):
 
 ```sh
 cd /opt/aceso/monitoring
-sudo mv test_alert.yml test_alert.yml.disabled
-sudo docker compose restart prometheus
+echo 'groups: []' > test_alert.yml
+docker compose restart prometheus
 ```
+
+Do **not** `mv` the file. `monitoring/docker-compose.yml` bind-mounts
+the exact path `./test_alert.yml:/etc/prometheus/test_alert.yml`;
+renaming the host file makes the next `docker compose restart` fail
+(`not a directory: Are you trying to mount a directory onto a file`) and
+auto-creates a root-owned empty directory at the original path that has
+to be `sudo rmdir`'d before you can restore the file. See `status.md`
+"Lessons learned" 2026-05-20.
 
 After the restart, `/api/v1/alerts` should show zero firing alerts (or
 only your real ones, if you've added any). Aceso's logs will switch to

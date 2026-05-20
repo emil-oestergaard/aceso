@@ -8,9 +8,12 @@
 # REMOVE THIS RULE AFTER FIRST-TICK VERIFICATION. It exists so Aceso has
 # a deterministic alert to react to on its first poll. Once you've
 # confirmed `docker compose logs aceso` shows a real incident landing
-# in /data/incidents.json, disable this by renaming the file:
-#   mv test_alert.yml test_alert.yml.disabled
+# in /data/incidents.json, disable this by emptying the rule group:
+#   echo 'groups: []' > test_alert.yml
 #   docker compose restart prometheus
+# Do NOT `mv` the file — `monitoring/docker-compose.yml` bind-mounts this
+# exact path into the prometheus container, and renaming will fail the
+# next restart (see docs/status.md "Lessons learned" 2026-05-20).
 # Aceso will then only react to real alerts you define.
 #
 # The `job: aceso-self-test` label is intentional: it gives Aceso's

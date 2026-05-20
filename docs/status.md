@@ -1,6 +1,6 @@
 # docs/status.md — capability matrix
 
-> Last updated: 2026-05-13 (V0 live end-to-end on CX23 + Pi — five clean ticks, qwen2.5:7b diagnoses landing in `/data/incidents.json`)
+> Last updated: 2026-05-20 (soak week complete — synthetic alert retired, V0 in steady-state production)
 >
 > **This file is the source of truth for what Aceso can actually do
 > right now.** Do not assume a capability exists in production code
@@ -125,7 +125,7 @@ loop" layer that V1's approval UI will eventually formalize.
 | Cross-tunnel smoke test | `wired` | `cx23-setup.sh` ends with `POST /api/generate` over the tunnel and asserts the response decodes to `{cause, suggested_action}`. Same prompt shape the agent uses, so a green smoke run is a strong predictor for Phase 4. |
 | Pi-ready receipt (`/etc/aceso/pi-ready`) | `wired` | Stamped at end of `pi-setup.sh` with `ready_at`, `ollama_version`, `ollama_model`, `warm_max_seconds`, `kernel`. Human-readable; not consumed by the agent. |
 | First production deploy | `shipped` | Completed 2026-05-13. Pi-ready receipt stamped at 17:50:18 UTC (`ollama_version=0.23.3`, `ollama_model=qwen2.5:7b-instruct-q4_K_M`, `warm_max_seconds=19`, `kernel=6.12.75+rpt-rpi-2712`). Aceso started on CX23 at 17:56:35 and produced five sane diagnoses in the first four minutes. |
-| 1-week soak before prod flip | `not started` | Per Phase 5 in `pi-deploy.md`: synthetic alerts via dev stack, watch for memory leaks / tunnel staleness / model drift / SD-card write pressure. 24h is not enough — slow leaks need time. **Soak began 2026-05-13; flip to `shipped` after 2026-05-20.** Synthetic alert deliberately kept firing through the soak so there's a guaranteed-every-30s signal exercising the full Prometheus → Loki → Ollama → NDJSON path. Disable after day 7 when real alerts come online (`mv monitoring/test_alert.yml monitoring/test_alert.yml.disabled && docker compose restart prometheus`). |
+| 1-week soak before prod flip | `shipped` | Ran 2026-05-13 → 2026-05-20 on CX23, `AlwaysFiring` driving the Prometheus → Loki → Ollama → NDJSON path every 30 s. All four Phase-5 checks passed: Pi `throttled=0x0` steady at ~68 °C, `ollama serve` RSS stable ~110 MB, WG handshake fresh, `journalctl -u ollama` ~2 lines/min. Retire on CX23 with `echo 'groups: []' > monitoring/test_alert.yml && docker compose restart prometheus` — not `mv` (see Lessons learned 2026-05-20). |
 
 ## V0 out-of-scope (deliberate deferrals — record only, do not build)
 
@@ -157,6 +157,7 @@ them next time. Add an entry when a fix lands; do not edit historical
 entries.
 
 - **2026-05-09 — Compose defaults can drift silently from binary acceptance.** Commit `fab6b3c` deleted cloud LLM backends from the binary; the corresponding `BACKEND_ORDER` defaults in `docker-compose.yml` and `docker-compose.dev.yml` were missed. The agent kept booting (chain skipped unknown names rather than failing) but emitted spurious `skipping unknown backend` warnings on every startup, and `DEEPSEEK_API_KEY`/`GEMINI_API_KEY` env passthroughs were dead. The defense-in-depth test in `fallback_test.go` validated the *binary* but not the *deployment surface*. Closed by `agent/compose_defaults_test.go` (commit landing this row).
+- **2026-05-20 — `mv test_alert.yml` is the wrong soak-retirement recipe.** `monitoring/docker-compose.yml` bind-mounts the exact path into prometheus; renaming makes the next `docker compose restart` fail with `not a directory` and auto-creates a root-owned empty dir there. Correct retirement: `echo 'groups: []' > monitoring/test_alert.yml`. Bad recipe was duplicated in row 128, `monitoring-stack.md`, and `monitoring/test_alert.yml`'s header — all corrected. Permanent cure (deferred): drop the bind mount + `rule_files` entry so the file can be deleted.
 - **2026-05-13 — Pinned-asset URLs can rot when the upstream changes packaging.** `pi-setup.sh` Phase 0b hard-coded the URL `https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-arm64` — a bare binary that Ollama shipped through ~v0.5.x. By v0.6+ they switched to a zstd tarball `ollama-linux-arm64.tar.zst` containing `bin/ollama` + `lib/ollama/` (runner binaries + shared libs). The default `OLLAMA_VERSION=0.5.7` in the conf template masked this because deploys against 0.5.7 still worked; bumping the default to a current version surfaced a 404 at download time. Closed by teaching Phase 0b to download the tarball, adding `zstd`/`tar` to Phase 1's apt install, and extracting `bin/ollama` + `lib/ollama/` to `/usr/local/bin/ollama` and `/usr/local/lib/ollama` in Phase 3. The SHA256 verification still runs against the tarball before any extraction — supply-chain story unchanged.
 
 ## Documentation debt
