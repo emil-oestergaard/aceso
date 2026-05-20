@@ -151,23 +151,29 @@ deferred and listed for clarity.
 
 ### V1 open design questions
 
-These must be answered (in ADRs) before implementation starts.
+Consolidated into a single umbrella ADR:
+[`adr/005-hitl-action-proposals.md`](adr/005-hitl-action-proposals.md).
+The three sub-decisions originally planned here (approval surface,
+action vocabulary, approval state store) were too coupled to reason
+about separately and now live in one place. They may be lifted into
+focused superseding ADRs later if any one grows enough to warrant it.
 
-- **ADR-0004: V1 approval surface.** Three serious candidates:
-  ntfy.sh action buttons (free, already in the stack, but limited
-  payload size and the operator must trust ntfy with action
-  metadata); a small self-hosted web UI on the CX23 (full control,
-  more code, needs CSP + auth); a CLI/SSH workflow ("`aceso review`"
-  on the CX23). Decision is downstream of soak data and operator
-  ergonomics.
-- **ADR-0005: Action vocabulary.** Fixed enum vs. operator-supplied
-  YAML runbook registry vs. both. Bias toward "both, with the enum
-  as the safe default and the registry as the escape hatch."
-- **ADR-0006: Approval state store.** Additive fields on
-  `incidents.json` (simple, but every approval is a new NDJSON line
-  the operator has to mentally `tail`) vs. a sidecar SQLite store
-  (queryable, but adds a state file to back up). Lean toward
-  additive NDJSON until a pain point appears.
+Resolutions (full rationale in ADR-005 and the
+[V1 PRD](prd/v1-hitl.md)):
+
+- **Approval surface.** Surface choice deferred to first-iteration
+  implementation work, framed in the PRD: CLI (`aceso review`) as
+  the V1.0 baseline; a small self-hosted web UI as a V1.1+ layer.
+  ntfy.sh action buttons, Slack/Discord bots, and email approval are
+  explicitly rejected for V1 — auth model is too weak.
+- **Action vocabulary.** Fixed compile-time enum:
+  `systemctl_restart`, `docker_restart`, `noop`. Operator-curated
+  unit allowlist lives in a YAML registry the agent enforces
+  client-side. Adding a kind is a code change plus an ADR amendment,
+  not a config change.
+- **Approval state store.** Additive NDJSON lines keyed by
+  `incident_id`, last-write-wins fold. No sidecar SQLite. Revisit if
+  `incidents.json` exceeds ~10 GB or fold-by-id becomes a hot path.
 
 ## V2 — Bounded autonomous remediation (later)
 
