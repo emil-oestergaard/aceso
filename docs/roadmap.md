@@ -32,11 +32,11 @@ V0 polls Prometheus for firing alerts, fetches per-alert logs from
 Loki, asks a local Ollama instance for a `{cause, suggested_action}`
 diagnosis, and writes one NDJSON line per incident to
 `/data/incidents.json`. Cloud LLM backends do not exist in the binary
-([ADR-0001](adr/0001-local-only-inference.md)). Inference-path failures
-escalate to a human ([ADR-0002](adr/0002-human-escalation-over-cloud-fallback.md)),
+([ADR-001](adr/001-local-only-inference.md)). Inference-path failures
+escalate to a human ([ADR-002](adr/002-human-escalation-over-cloud-fallback.md)),
 not a third-party model. Production topology is one CX23 + one Pi
 joined by a plain WireGuard tunnel
-([ADR-0003](adr/0003-plain-wireguard-over-tailscale.md)).
+([ADR-003](adr/003-plain-wireguard-over-tailscale.md)).
 
 ### V0 shipping definition
 
@@ -60,7 +60,7 @@ work. Test backfill can land before the Pi soak completes.
 - No write actions. `GET` against Prometheus and Loki, `POST` to
   Ollama and ntfy.sh, that is the entire egress surface.
 - No deduplication or rate limiting on escalations
-  ([ADR-0002](adr/0002-human-escalation-over-cloud-fallback.md)).
+  ([ADR-002](adr/002-human-escalation-over-cloud-fallback.md)).
 - No multi-host fanout, no HA, no failover.
 - No structured action vocabulary in the diagnosis — just two
   strings, `cause` and `suggested_action`. The action is for human
@@ -105,7 +105,7 @@ deferred and listed for clarity.
    `suggested_action` continues to exist for human reading.
 2. **Approval surface.** A way for the operator to see proposals and
    click approve/reject from a device they actually carry. Specific
-   tech choice deferred to ADR-0004 (see open questions).
+   tech choice deferred to ADR-004 (see open questions).
 3. **Action executor.** A new `agent/executor.go` that takes an
    approved `proposed_action` and runs it under the same context
    timeout discipline as the rest of the agent. Single-action only;
@@ -232,11 +232,11 @@ maintain.
 
 ### Local-only invariant
 
-[ADR-0001](adr/0001-local-only-inference.md) and CLAUDE.md rule 12
+[ADR-001](adr/001-local-only-inference.md) and CLAUDE.md rule 12
 hold across all milestones. V1 actions and V2 runbooks may target
 operator-owned infrastructure but never call out to third-party
 LLMs. If a future milestone needs cloud LLM access, it does so by
-*superseding* ADR-0001, not by side-stepping it.
+*superseding* ADR-001, not by side-stepping it.
 
 ### Test coverage
 

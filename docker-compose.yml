@@ -22,7 +22,7 @@ services:
       # Required: full base URLs for each backend.
       # OLLAMA_URL in prod points at the Raspberry Pi over WireGuard
       # (e.g. http://10.10.0.2:11434) so the VPS doesn't host the LLM.
-      # See docs/adr/0003-plain-wireguard-over-tailscale.md.
+      # See docs/adr/003-plain-wireguard-over-tailscale.md.
       PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
       LOKI_URL:       ${LOKI_URL:-http://loki:3100}
       OLLAMA_URL:     ${OLLAMA_URL:-http://ollama:11434}
@@ -36,12 +36,12 @@ services:
 
       # LLM backend chain (see agent/backends.go, agent/fallback.go).
       # V0 only supports "ollama"; the binary rejects unknown names at
-      # startup. See docs/adr/0001-local-only-inference.md.
+      # startup. See docs/adr/001-local-only-inference.md.
       BACKEND_ORDER: ${BACKEND_ORDER:-ollama}
 
       # Human escalation when the backend chain fails. Empty = log line
       # only; set to an ntfy.sh topic URL to additionally send a push.
-      # See docs/adr/0002-human-escalation-over-cloud-fallback.md.
+      # See docs/adr/002-human-escalation-over-cloud-fallback.md.
       ESCALATE_NTFY_URL: ${ESCALATE_NTFY_URL:-}
 
     volumes:
