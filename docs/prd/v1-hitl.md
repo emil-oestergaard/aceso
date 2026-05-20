@@ -64,7 +64,10 @@ which alerts fire, how often, where the operator is when they fire.
    last N log lines).
 4. **No surprise execution.** Approval timeouts are visible. An old
    proposal that expired must not run if the operator approves it
-   after the window.
+   after the window. Expiry produces no push notification; the
+   operator sees the expired state on next review-surface visit
+   (intentional — see ADR-005's "ntfy down during expiry" failure
+   mode).
 5. **Audit-trail-visible to the operator.** The operator can see
    what they approved, when, what ran, and what it returned. Not
    just "Aceso ran something three days ago" — full context.

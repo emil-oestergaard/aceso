@@ -8,7 +8,7 @@
 - **Related:** [ADR-001](001-local-only-inference.md), [ADR-002](002-human-escalation-over-cloud-fallback.md), [`../roadmap.md`](../roadmap.md), [`../incidents-schema.md`](../incidents-schema.md), [`../prd/v1-hitl.md`](../prd/v1-hitl.md)
 
 This ADR consolidates the three planned slots in `roadmap.md`
-(0004 approval surface, 0005 action vocabulary, 0006 approval state
+(004 approval surface, 005 action vocabulary, 006 approval state
 store) into a single write-up of V1's HITL architecture. The
 surface-choice question lives in the PRD; this ADR fixes the
 *write path*, *lifecycle*, *storage*, *auth boundary*, *failure modes*,
@@ -164,6 +164,7 @@ escalation push.
 | LLM produces malformed `proposed_action` | Persisted with `proposed_action: null`, partial failure recorded in `backend_errors`. Operator sees diagnosis without action. |
 | Approval surface unreachable | Proposals expire after `APPROVAL_TIMEOUT_SECONDS`. Sweeper runs in the agent's tick loop, not surface-dependent. |
 | Approval arrives but kind is not in allowlist | Executor rejects; appends an `execution` line with a sentinel exit code and `stderr_excerpt` explaining the reject. No host side effect. |
+| Approval arrives with invalid or already-used token | Executor rejects without touching the host; appends an `execution` line with a sentinel exit code and `stderr_excerpt` describing the token failure (mismatch, replay, or post-expiry). Logged at WARN — a token failure is security-relevant (replay attempt, misconfigured surface, compromised notification path). |
 | Action runs, exits non-zero | Recorded with real exit code plus truncated stderr. No automatic retry. |
 | Agent crashes mid-execution | On restart, the next tick appends an `execution` line with `exit_code = -2`, `stderr_excerpt = "execution lost"`. Operator decides the next step. |
 | Operator approves a hallucinated action | Bounded by kind enum, param schema, and sudoers allowlist. Worst-case is an in-allowlist action against an in-allowlist target — same risk profile as any sysadmin tool with a confused operator. |

@@ -173,7 +173,9 @@ restructures the `error` field.
 | `approval.decision` | enum string | yes when present | `"approved"`, `"rejected"`, `"expired"`. |
 | `approval.reason` | string \| null | optional | Free text. `null` for `approved` and `expired`; usually populated for `rejected`. |
 | `execution` | object \| null | optional | Action outcome. `null` until the action runs (or never, if rejected/expired). |
-| `execution.exit_code` | int | yes when present | OS exit code. `0` is success. |
+| `execution.started_at` | RFC 3339 string | yes when present | When the executor invoked the command. Distinct from the incident `timestamp` (recording time, not action-start time). |
+| `execution.finished_at` | RFC 3339 string | yes when present | When the command returned. Absent on the `exit_code = -2` crash-recovery path (the agent died mid-run; the real finish time is unknown). |
+| `execution.exit_code` | int | yes when present | OS exit code. `0` is success. Sentinel `-2` means the execution record was reconstructed after an agent crash and the command's actual outcome is unknown (per [ADR-005](adr/005-hitl-action-proposals.md)). |
 | `execution.stdout_excerpt` | string | yes when present | Truncated to 4 KiB; full output lives in journalctl. |
 | `execution.stderr_excerpt` | string | yes when present | Same truncation. |
 | `backend_errors` | array of object | optional | Migrated from v0's `error` string. Each entry is `{name, error, at}`. Empty array on full success; non-empty when one or more backends in the chain failed. The chain-success line and the chain-failure line are distinguished by `escalated`, not by this array's emptiness. |
